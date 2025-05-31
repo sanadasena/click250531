@@ -127,6 +127,44 @@
         .character-item:last-child {
             border-bottom: none;
         }
+
+        /* --- エフェクト関連のCSS --- */
+        #effectContainer {
+            position: fixed; /* 画面全体に固定 */
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* クリックイベントを透過させる */
+            overflow: hidden; /* 画面外に出たエフェクトを非表示 */
+            z-index: 999; /* 他の要素の上に表示 */
+        }
+
+        .particle {
+            position: absolute;
+            border-radius: 50%; /* 円形 */
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0); /* 初期状態は中央に小さく */
+            animation: particle-fade-move 1s forwards ease-out; /* アニメーション */
+        }
+
+        /* エフェクトのアニメーション定義 */
+        @keyframes particle-fade-move {
+            0% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(0); /* 初期は透明で小さい */
+            }
+            50% {
+                opacity: 0.8;
+                transform: translate(var(--translate-x), var(--translate-y)) scale(1); /* 中間で少し移動し拡大 */
+            }
+            100% {
+                opacity: 0;
+                transform: translate(var(--translate-x), var(--translate-y)) scale(1.5); /* 最終的に透明になりさらに拡大 */
+            }
+        }
+        /* --- エフェクト関連のCSS終 --- */
+
         /* Responsive adjustments */
         @media (max-width: 640px) {
             .game-container {
@@ -154,7 +192,7 @@
         <div class="flex flex-col md:flex-row justify-around items-center gap-4 text-xl font-semibold text-gray-700">
             <p>現在の力: <span id="powerDisplay" class="text-indigo-600 text-3xl">0</span></p>
             <p>プレミアム通貨: <span id="premiumCurrencyDisplay" class="text-amber-500 text-3xl">0</span></p>
-            <p>所持キャラ: <span id="ownedCharactersCount" class="text-green-600 text-3xl">0</span></p>
+            <p>現在のクリック力: <span id="currentClickPowerDisplay" class="text-purple-600 text-3xl">1</span></p>
         </div>
 
         <button id="clickButton" class="btn btn-primary text-2xl mt-4">
@@ -224,16 +262,17 @@
     </div>
 
     <div id="messageBox" class="message-box"></div>
+    <div id="effectContainer"></div>
 
     <script>
         // ゲームの状態変数
         let power = 0; // 現在の力
         let premiumCurrency = 0; // プレミアム通貨
-        let clickPower = 1; // 1クリックあたりの力 (基本値 + キャラクター攻撃力 + アップグレード)
+        let baseClickPower = 1; // 基本のクリック力
         let autoClickRate = 0; // 自動クリックで毎秒獲得する力
-        let ownedCharacters = []; // 所持キャラクターのリスト
+        let ownedCharacters = []; // 所持キャラクターのリスト。各キャラは { id, name, attack, rarity, multiplier } を持つ
 
-        // キャラクターデータ
+        // キャラクターデータ (ベースステータス)
         const characters = [
             { id: 'char1', name: '見習い剣士', attack: 5, rarity: 'Common' },
             { id: 'char2', name: '見習い魔法使い', attack: 7, rarity: 'Common' },
@@ -266,13 +305,15 @@
 
         // ガチャのコスト
         const gachaCost = 500;
+        const GACHA_DUPLICATE_MULTIPLIER_BONUS = 0.1; // 同じキャラを引いた時の攻撃力倍率増加量
 
         // DOM要素の取得
         const powerDisplay = document.getElementById('powerDisplay');
         const premiumCurrencyDisplay = document.getElementById('premiumCurrencyDisplay');
-        const ownedCharactersCountDisplay = document.getElementById('ownedCharactersCount');
+        const currentClickPowerDisplay = document.getElementById('currentClickPowerDisplay'); // 現在のクリック力表示
         const clickButton = document.getElementById('clickButton');
         const messageBox = document.getElementById('messageBox');
+        const effectContainer = document.getElementById('effectContainer'); // エフェクトコンテナ
 
         // アップグレードボタンと表示要素
         const buyClickPowerUpgradeBtn = document.getElementById('buyClickPowerUpgrade');
@@ -294,12 +335,41 @@
         const gachaCostDisplay = document.getElementById('gachaCost');
         const ownedCharactersList = document.getElementById('ownedCharactersList');
 
+        // エフェクト用のカラーパレット
+        const particleColors = [
+            ['#FFD700', '#FFA500'], // Gold to Orange
+            ['#8A2BE2', '#4B0082'], // Blue Violet to Indigo
+            ['#00CED1', '#40E0D0'], // Dark Turquoise to Turquoise
+            ['#FF69B4', '#FF1493'], // Hot Pink to Deep Pink
+            ['#7FFF00', '#32CD32']  // Chartreuse to Lime Green
+        ];
+
+        /**
+         * 現在の総クリック力を計算する関数
+         * baseClickPower、アップグレード、所持キャラクターの攻撃力を合計します。
+         */
+        function calculateTotalClickPower() {
+            let total = baseClickPower;
+
+            // クリック力強化アップグレードによる加算
+            total += upgrades.clickPower.level * upgrades.clickPower.effect;
+
+            // 究極の力アップグレードによる加算
+            total += upgrades.ultimatePower.level * upgrades.ultimatePower.effect;
+
+            // 所持キャラクターの攻撃力と倍率による加算
+            ownedCharacters.forEach(char => {
+                total += char.attack * char.multiplier;
+            });
+
+            return Math.floor(total); // 小数点以下を切り捨てて整数にする
+        }
 
         // UIを更新する関数
         function updateUI() {
             powerDisplay.textContent = power.toLocaleString();
             premiumCurrencyDisplay.textContent = premiumCurrency.toLocaleString();
-            ownedCharactersCountDisplay.textContent = ownedCharacters.length.toLocaleString();
+            currentClickPowerDisplay.textContent = calculateTotalClickPower().toLocaleString(); // 計算したクリック力を表示
 
             // クリック力強化の表示更新
             clickPowerUpgradeCostDisplay.textContent = upgrades.clickPower.cost.toLocaleString();
@@ -307,7 +377,7 @@
             buyClickPowerUpgradeBtn.disabled = power < upgrades.clickPower.cost;
 
             // 自動クリックの表示更新
-            autoClickCostDisplay.textContent = autoClickRate.toLocaleString();
+            autoClickCostDisplay.textContent = upgrades.autoClick.cost.toLocaleString();
             autoClickValueDisplay.textContent = autoClickRate.toLocaleString();
             buyAutoClickUpgradeBtn.disabled = power < upgrades.autoClick.cost;
 
@@ -328,9 +398,13 @@
                 ownedCharacters.forEach(char => {
                     const charItem = document.createElement('div');
                     charItem.className = 'character-item';
+                    let multiplierText = '';
+                    if (char.multiplier > 1) {
+                        multiplierText = ` (x${char.multiplier.toFixed(1)}倍)`; // 倍率を表示
+                    }
                     charItem.innerHTML = `
                         <span class="font-medium">${char.name}</span>
-                        <span class="text-sm text-gray-600">攻撃力: ${char.attack} (${char.rarity})</span>
+                        <span class="text-sm text-gray-600">攻撃力: ${char.attack}${multiplierText}</span>
                     `;
                     ownedCharactersList.appendChild(charItem);
                 });
@@ -346,22 +420,67 @@
             }, duration);
         }
 
+        // クリックエフェクトを生成する関数
+        function createClickEffect(x, y) {
+            const numParticles = 5 + Math.floor(Math.random() * 5); // 5-9個の粒子
+            for (let i = 0; i < numParticles; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+
+                // ランダムなサイズ
+                const size = 10 + Math.random() * 20; // 10pxから30px
+                particle.style.width = `${size}px`;
+                particle.style.height = `${size}px`;
+
+                // ランダムな色
+                const colors = particleColors[Math.floor(Math.random() * particleColors.length)];
+                particle.style.background = `radial-gradient(circle, ${colors[0]} 0%, ${colors[1]} 100%)`;
+
+                // クリック位置に配置
+                particle.style.left = `${x}px`;
+                particle.style.top = `${y}px`;
+
+                // ランダムな移動量 (CSS変数でアニメーションに渡す)
+                const translateX = (Math.random() - 0.5) * 100; // -50pxから50px
+                const translateY = (Math.random() - 0.5) * 100; // -50pxから50px
+                particle.style.setProperty('--translate-x', `${translateX}px`);
+                particle.style.setProperty('--translate-y', `${translateY}px`);
+
+                // アニメーションの遅延と持続時間を少しランダムにする
+                const animationDuration = 0.8 + Math.random() * 0.4; // 0.8sから1.2s
+                particle.style.animationDuration = `${animationDuration}s`;
+                const animationDelay = Math.random() * 0.2; // 0sから0.2s
+                particle.style.animationDelay = `${animationDelay}s`;
+
+
+                effectContainer.appendChild(particle);
+
+                // アニメーション終了後に要素を削除
+                particle.addEventListener('animationend', () => {
+                    particle.remove();
+                });
+            }
+        }
+
+
         // クリックボタンのイベントリスナー
-        clickButton.addEventListener('click', () => {
-            power += clickPower; // 現在のクリック力を使用
+        clickButton.addEventListener('click', (event) => {
+            power += calculateTotalClickPower(); // 計算したクリック力を使用
             updateUI();
-            showMessage(`+${clickPower} 力！`);
+            showMessage(`+${calculateTotalClickPower()} 力！`); // メッセージも計算したクリック力で表示
+
+            // クリックエフェクトを生成
+            createClickEffect(event.clientX, event.clientY);
         });
 
         // クリック力強化の購入
         buyClickPowerUpgradeBtn.addEventListener('click', () => {
             if (power >= upgrades.clickPower.cost) {
                 power -= upgrades.clickPower.cost;
-                clickPower += upgrades.clickPower.effect; // クリック力に加算
+                upgrades.clickPower.level++; // レベルを上げる
                 upgrades.clickPower.cost = Math.floor(upgrades.clickPower.cost * 1.5); // コスト増加
-                upgrades.clickPower.level++;
-                showMessage(`クリック力強化！ 現在のクリック力: ${clickPower}`);
-                updateUI();
+                showMessage(`クリック力強化！`);
+                updateUI(); // UI更新時にクリック力が再計算される
             } else {
                 showMessage('力が足りません！');
             }
@@ -392,10 +511,11 @@
         buyUltimatePowerBtn.addEventListener('click', () => {
             if (premiumCurrency >= upgrades.ultimatePower.cost) {
                 premiumCurrency -= upgrades.ultimatePower.cost;
-                clickPower += upgrades.ultimatePower.effect; // 究極の力はクリック力を大幅に増加
-                upgrades.ultimatePower.level++;
-                showMessage(`究極の力を手に入れた！ クリック力が大幅にアップ！`);
-                updateUI();
+                upgrades.ultimatePower.level++; // レベルを上げる
+                // 究極の力は一度しか買えない、またはコストが急増するなど、調整が必要
+                // ここではシンプルにレベルを上げるだけ
+                showMessage(`究極の力を手に入れた！`);
+                updateUI(); // UI更新時にクリック力が再計算される
             } else {
                 showMessage('プレミアム通貨が足りません！');
             }
@@ -408,12 +528,22 @@
 
                 // ランダムにキャラクターを選択
                 const randomIndex = Math.floor(Math.random() * characters.length);
-                const newCharacter = characters[randomIndex];
+                const newCharacterBase = characters[randomIndex]; // ベースデータ
 
-                ownedCharacters.push(newCharacter);
-                clickPower += newCharacter.attack; // ★ここが変更点：獲得したキャラの攻撃力をクリック力に加算
-                showMessage(`${newCharacter.name} を獲得しました！ (攻撃力: ${newCharacter.attack})`);
-                updateUI();
+                // 所持キャラクターの中に同じIDのキャラクターがいるかチェック
+                let existingChar = ownedCharacters.find(char => char.id === newCharacterBase.id);
+
+                if (existingChar) {
+                    // 同じキャラクターがいた場合、倍率を上げる
+                    existingChar.multiplier = parseFloat((existingChar.multiplier + GACHA_DUPLICATE_MULTIPLIER_BONUS).toFixed(1));
+                    showMessage(`${existingChar.name} の攻撃力が x${existingChar.multiplier.toFixed(1)}倍 になりました！`);
+                } else {
+                    // 新しいキャラクターの場合、リストに追加
+                    const newOwnedChar = { ...newCharacterBase, multiplier: 1.0 }; // 新しいインスタンスとして倍率1.0で追加
+                    ownedCharacters.push(newOwnedChar);
+                    showMessage(`${newCharacterBase.name} を獲得しました！ (攻撃力: ${newCharacterBase.attack})`);
+                }
+                updateUI(); // UI更新時にクリック力が再計算される
             } else {
                 showMessage(`ガチャを引くには ${gachaCost} 力が必要です！`);
             }
