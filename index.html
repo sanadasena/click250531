@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>クリックで強くなるゲーム</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .game-container {
+            background-color: #ffffff;
+            border-radius: 1.5rem; /* rounded-3xl */
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1); /* shadow-xl */
+            padding: 2rem;
+            text-align: center;
+            width: 100%;
+            max-width: 600px;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        .btn {
+            padding: 1rem 2rem;
+            border-radius: 0.75rem; /* rounded-xl */
+            font-weight: 700; /* font-bold */
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .btn-primary {
+            background-image: linear-gradient(to right, #6366f1, #8b5cf6); /* from-indigo-500 to-purple-600 */
+            color: white;
+        }
+        .btn-primary:hover {
+            background-image: linear-gradient(to right, #4f46e5, #7c3aed); /* from-indigo-600 to-purple-700 */
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+        }
+        .btn-secondary {
+            background-color: #e2e8f0; /* bg-slate-200 */
+            color: #334155; /* text-slate-700 */
+        }
+        .btn-secondary:hover {
+            background-color: #cbd5e1; /* bg-slate-300 */
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+        }
+        .btn-premium {
+            background-image: linear-gradient(to right, #f59e0b, #ef4444); /* from-amber-500 to-red-500 */
+            color: white;
+        }
+        .btn-premium:hover {
+            background-image: linear-gradient(to right, #d97706, #dc2626); /* from-amber-600 to-red-600 */
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+        }
+        .btn-gacha {
+            background-image: linear-gradient(to right, #10b981, #06b6d4); /* from-emerald-500 to-cyan-500 */
+            color: white;
+        }
+        .btn-gacha:hover {
+            background-image: linear-gradient(to right, #059669, #0891b2); /* from-emerald-600 to-cyan-600 */
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+        }
+        .upgrade-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #f8fafc; /* bg-slate-50 */
+            padding: 1rem;
+            border-radius: 0.75rem; /* rounded-xl */
+            border: 1px solid #e2e8f0; /* border-slate-200 */
+        }
+        .upgrade-item button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        .message-box {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #333;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 10px;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+            pointer-events: none; /* Allows clicks to pass through */
+        }
+        .message-box.show {
+            opacity: 1;
+        }
+        .character-list {
+            max-height: 150px; /* Adjust as needed */
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.5rem;
+            padding: 0.5rem;
+            background-color: #f8fafc;
+        }
+        .character-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .character-item:last-child {
+            border-bottom: none;
+        }
+        /* Responsive adjustments */
+        @media (max-width: 640px) {
+            .game-container {
+                padding: 1.5rem;
+            }
+            .btn {
+                padding: 0.75rem 1.5rem;
+                font-size: 0.9rem;
+            }
+            .upgrade-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.5rem;
+            }
+            .upgrade-item button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1 class="text-4xl font-extrabold text-gray-900 mb-4">クリックで強くなるゲーム</h1>
+
+        <div class="flex flex-col md:flex-row justify-around items-center gap-4 text-xl font-semibold text-gray-700">
+            <p>現在の力: <span id="powerDisplay" class="text-indigo-600 text-3xl">0</span></p>
+            <p>プレミアム通貨: <span id="premiumCurrencyDisplay" class="text-amber-500 text-3xl">0</span></p>
+            <p>所持キャラ: <span id="ownedCharactersCount" class="text-green-600 text-3xl">0</span></p>
+        </div>
+
+        <button id="clickButton" class="btn btn-primary text-2xl mt-4">
+            <span class="mr-2">💪</span> クリックして力を得る！
+        </button>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+            <div class="col-span-full text-2xl font-bold text-gray-800 mb-2">アップグレード</div>
+
+            <div class="upgrade-item">
+                <div>
+                    <p class="font-bold text-lg">クリック力強化</p>
+                    <p class="text-sm text-gray-600">クリックあたりの力が<span id="clickPowerUpgradeValue">1</span>増加</p>
+                    <p class="text-sm text-gray-600">コスト: <span id="clickPowerUpgradeCost">10</span> 力</p>
+                </div>
+                <button id="buyClickPowerUpgrade" class="btn btn-secondary text-base">購入</button>
+            </div>
+
+            <div class="upgrade-item">
+                <div>
+                    <p class="font-bold text-lg">自動クリック</p>
+                    <p class="text-sm text-gray-600">毎秒<span id="autoClickValue">0</span>の力を自動獲得</p>
+                    <p class="text-sm text-gray-600">コスト: <span id="autoClickCost">100</span> 力</p>
+                </div>
+                <button id="buyAutoClickUpgrade" class="btn btn-secondary text-base">購入</button>
+            </div>
+        </div>
+
+        <div class="mt-6">
+            <div class="col-span-full text-2xl font-bold text-gray-800 mb-2">ガチャ</div>
+            <div class="upgrade-item">
+                <div>
+                    <p class="font-bold text-lg">キャラガチャ</p>
+                    <p class="text-sm text-gray-600">新しいキャラクターをゲット！</p>
+                    <p class="text-sm text-gray-600">コスト: <span id="gachaCost">500</span> 力</p>
+                </div>
+                <button id="drawGacha" class="btn btn-gacha text-base">ガチャを引く</button>
+            </div>
+            <div class="mt-4">
+                <p class="text-lg font-semibold text-gray-800">所持キャラクター:</p>
+                <div id="ownedCharactersList" class="character-list">
+                    <p class="text-gray-500 text-sm italic">まだキャラクターがいません。</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-6">
+            <div class="col-span-full text-2xl font-bold text-gray-800 mb-2">課金要素</div>
+            <div class="upgrade-item">
+                <div>
+                    <p class="font-bold text-lg">プレミアム通貨購入</p>
+                    <p class="text-sm text-gray-600">100 プレミアム通貨を獲得</p>
+                    <p class="text-sm text-gray-600">（シミュレーション）</p>
+                </div>
+                <button id="buyPremiumCurrency" class="btn btn-premium text-base">購入する</button>
+            </div>
+
+            <div class="upgrade-item mt-4">
+                <div>
+                    <p class="font-bold text-lg">究極の力</p>
+                    <p class="text-sm text-gray-600">クリックあたりの力が<span id="ultimatePowerValue">1000</span>増加</p>
+                    <p class="text-sm text-gray-600">コスト: <span id="ultimatePowerCost">50</span> プレミアム通貨</p>
+                </div>
+                <button id="buyUltimatePower" class="btn btn-premium text-base">購入</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="messageBox" class="message-box"></div>
+
+    <script>
+        // ゲームの状態変数
+        let power = 0; // 現在の力
+        let premiumCurrency = 0; // プレミアム通貨
+        let clickPower = 1; // 1クリックあたりの力 (基本値 + キャラクター攻撃力 + アップグレード)
+        let autoClickRate = 0; // 自動クリックで毎秒獲得する力
+        let ownedCharacters = []; // 所持キャラクターのリスト
+
+        // キャラクターデータ
+        const characters = [
+            { id: 'char1', name: '見習い剣士', attack: 5, rarity: 'Common' },
+            { id: 'char2', name: '見習い魔法使い', attack: 7, rarity: 'Common' },
+            { id: 'char3', name: '熟練の戦士', attack: 15, rarity: 'Uncommon' },
+            { id: 'char4', name: '癒しの僧侶', attack: 3, rarity: 'Uncommon' },
+            { id: 'char5', name: '伝説のドラゴン', attack: 50, rarity: 'Rare' },
+            { id: 'char6', name: '影の暗殺者', attack: 25, rarity: 'Rare' },
+            { id: 'char7', name: '聖なる騎士', attack: 30, rarity: 'Rare' },
+            { id: 'char8', name: '古代の賢者', attack: 40, rarity: 'Rare' }
+        ];
+
+        // アップグレードのコストと効果
+        const upgrades = {
+            clickPower: {
+                cost: 10,
+                effect: 1,
+                level: 0
+            },
+            autoClick: {
+                cost: 100,
+                effect: 1,
+                level: 0
+            },
+            ultimatePower: {
+                cost: 50, // プレミアム通貨でのコスト
+                effect: 1000,
+                level: 0
+            }
+        };
+
+        // ガチャのコスト
+        const gachaCost = 500;
+
+        // DOM要素の取得
+        const powerDisplay = document.getElementById('powerDisplay');
+        const premiumCurrencyDisplay = document.getElementById('premiumCurrencyDisplay');
+        const ownedCharactersCountDisplay = document.getElementById('ownedCharactersCount');
+        const clickButton = document.getElementById('clickButton');
+        const messageBox = document.getElementById('messageBox');
+
+        // アップグレードボタンと表示要素
+        const buyClickPowerUpgradeBtn = document.getElementById('buyClickPowerUpgrade');
+        const clickPowerUpgradeCostDisplay = document.getElementById('clickPowerUpgradeCost');
+        const clickPowerUpgradeValueDisplay = document.getElementById('clickPowerUpgradeValue');
+
+        const buyAutoClickUpgradeBtn = document.getElementById('buyAutoClickUpgrade');
+        const autoClickCostDisplay = document.getElementById('autoClickCost');
+        const autoClickValueDisplay = document.getElementById('autoClickValue');
+
+        const buyPremiumCurrencyBtn = document.getElementById('buyPremiumCurrency');
+
+        const buyUltimatePowerBtn = document.getElementById('buyUltimatePower');
+        const ultimatePowerCostDisplay = document.getElementById('ultimatePowerCost');
+        const ultimatePowerValueDisplay = document.getElementById('ultimatePowerValue');
+
+        // ガチャ関連DOM要素
+        const drawGachaBtn = document.getElementById('drawGacha');
+        const gachaCostDisplay = document.getElementById('gachaCost');
+        const ownedCharactersList = document.getElementById('ownedCharactersList');
+
+
+        // UIを更新する関数
+        function updateUI() {
+            powerDisplay.textContent = power.toLocaleString();
+            premiumCurrencyDisplay.textContent = premiumCurrency.toLocaleString();
+            ownedCharactersCountDisplay.textContent = ownedCharacters.length.toLocaleString();
+
+            // クリック力強化の表示更新
+            clickPowerUpgradeCostDisplay.textContent = upgrades.clickPower.cost.toLocaleString();
+            clickPowerUpgradeValueDisplay.textContent = upgrades.clickPower.effect.toLocaleString();
+            buyClickPowerUpgradeBtn.disabled = power < upgrades.clickPower.cost;
+
+            // 自動クリックの表示更新
+            autoClickCostDisplay.textContent = autoClickRate.toLocaleString();
+            autoClickValueDisplay.textContent = autoClickRate.toLocaleString();
+            buyAutoClickUpgradeBtn.disabled = power < upgrades.autoClick.cost;
+
+            // 究極の力の表示更新
+            ultimatePowerCostDisplay.textContent = upgrades.ultimatePower.cost.toLocaleString();
+            ultimatePowerValueDisplay.textContent = upgrades.ultimatePower.effect.toLocaleString();
+            buyUltimatePowerBtn.disabled = premiumCurrency < upgrades.ultimatePower.cost;
+
+            // ガチャの表示更新
+            gachaCostDisplay.textContent = gachaCost.toLocaleString();
+            drawGachaBtn.disabled = power < gachaCost;
+
+            // 所持キャラクターリストの更新
+            ownedCharactersList.innerHTML = ''; // リストをクリア
+            if (ownedCharacters.length === 0) {
+                ownedCharactersList.innerHTML = '<p class="text-gray-500 text-sm italic">まだキャラクターがいません。</p>';
+            } else {
+                ownedCharacters.forEach(char => {
+                    const charItem = document.createElement('div');
+                    charItem.className = 'character-item';
+                    charItem.innerHTML = `
+                        <span class="font-medium">${char.name}</span>
+                        <span class="text-sm text-gray-600">攻撃力: ${char.attack} (${char.rarity})</span>
+                    `;
+                    ownedCharactersList.appendChild(charItem);
+                });
+            }
+        }
+
+        // メッセージボックスを表示する関数
+        function showMessage(message, duration = 2000) {
+            messageBox.textContent = message;
+            messageBox.classList.add('show');
+            setTimeout(() => {
+                messageBox.classList.remove('show');
+            }, duration);
+        }
+
+        // クリックボタンのイベントリスナー
+        clickButton.addEventListener('click', () => {
+            power += clickPower; // 現在のクリック力を使用
+            updateUI();
+            showMessage(`+${clickPower} 力！`);
+        });
+
+        // クリック力強化の購入
+        buyClickPowerUpgradeBtn.addEventListener('click', () => {
+            if (power >= upgrades.clickPower.cost) {
+                power -= upgrades.clickPower.cost;
+                clickPower += upgrades.clickPower.effect; // クリック力に加算
+                upgrades.clickPower.cost = Math.floor(upgrades.clickPower.cost * 1.5); // コスト増加
+                upgrades.clickPower.level++;
+                showMessage(`クリック力強化！ 現在のクリック力: ${clickPower}`);
+                updateUI();
+            } else {
+                showMessage('力が足りません！');
+            }
+        });
+
+        // 自動クリックの購入
+        buyAutoClickUpgradeBtn.addEventListener('click', () => {
+            if (power >= upgrades.autoClick.cost) {
+                power -= upgrades.autoClick.cost;
+                autoClickRate += upgrades.autoClick.effect;
+                upgrades.autoClick.cost = Math.floor(upgrades.autoClick.cost * 1.8); // コスト増加
+                upgrades.autoClick.level++;
+                showMessage(`自動クリック購入！ 毎秒 ${autoClickRate} 力獲得！`);
+                updateUI();
+            } else {
+                showMessage('力が足りません！');
+            }
+        });
+
+        // プレミアム通貨の購入（シミュレーション）
+        buyPremiumCurrencyBtn.addEventListener('click', () => {
+            premiumCurrency += 100; // 100プレミアム通貨を付与
+            showMessage('プレミアム通貨を100購入しました！');
+            updateUI();
+        });
+
+        // 究極の力の購入
+        buyUltimatePowerBtn.addEventListener('click', () => {
+            if (premiumCurrency >= upgrades.ultimatePower.cost) {
+                premiumCurrency -= upgrades.ultimatePower.cost;
+                clickPower += upgrades.ultimatePower.effect; // 究極の力はクリック力を大幅に増加
+                upgrades.ultimatePower.level++;
+                showMessage(`究極の力を手に入れた！ クリック力が大幅にアップ！`);
+                updateUI();
+            } else {
+                showMessage('プレミアム通貨が足りません！');
+            }
+        });
+
+        // ガチャを引く
+        drawGachaBtn.addEventListener('click', () => {
+            if (power >= gachaCost) {
+                power -= gachaCost;
+
+                // ランダムにキャラクターを選択
+                const randomIndex = Math.floor(Math.random() * characters.length);
+                const newCharacter = characters[randomIndex];
+
+                ownedCharacters.push(newCharacter);
+                clickPower += newCharacter.attack; // ★ここが変更点：獲得したキャラの攻撃力をクリック力に加算
+                showMessage(`${newCharacter.name} を獲得しました！ (攻撃力: ${newCharacter.attack})`);
+                updateUI();
+            } else {
+                showMessage(`ガチャを引くには ${gachaCost} 力が必要です！`);
+            }
+        });
+
+        // 自動クリックのタイマー
+        setInterval(() => {
+            power += autoClickRate;
+            updateUI();
+        }, 1000); // 1秒ごとに実行
+
+        // 初期UIの更新
+        updateUI();
+    </script>
+</body>
+</html>
