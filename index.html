@@ -507,6 +507,7 @@
         // --- アクセスログをFirestoreに記録する関数 ---
         async function logAccess() {
             // Firebaseが正常に初期化されていない場合はログを送信しない
+            // isAuthReady も確認することで、認証が完了するまで待つ
             if (!firebaseInitializedSuccessfully || !db || !isAuthReady) {
                 console.warn("Firestore or Auth not ready for access logging. Skipping log.");
                 return;
@@ -788,7 +789,7 @@
             }
             // Firebaseが正常に初期化されていない場合はランキング送信をブロック
             if (!firebaseInitializedSuccessfully || !isAuthReady) {
-                showMessage('Firebaseが初期化されていません。ランキング機能は利用できません。', 3000);
+                showMessage('Firebaseが初期化されていないか、認証が完了していません。ランキング機能は利用できません。', 3000);
                 return;
             }
 
