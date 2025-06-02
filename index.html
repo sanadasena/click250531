@@ -257,7 +257,7 @@
 </head>
 <body>
     <div class="game-container">
-        <h1 class="text-4xl font-extrabold text-gray-900 mb-4">クリック１で強くなるゲーム</h1>
+        <h1 class="text-4xl font-extrabold text-gray-900 mb-4">クリックで強くなるゲーム</h1>
 
         <div class="bg-blue-100 text-blue-800 p-3 rounded-lg mb-4 font-semibold text-lg">
             ページを開いてからの時間: <span id="elapsedTimeDisplay">000日00時間00分00秒.000</span>
@@ -458,11 +458,12 @@
             try {
                 // Firebase設定が不正な場合は初期化しない（Canvas外の場合など）
                 // ユーザーが提供したapiKeyがデフォルト値でないことを確認
-                if (!firebaseConfig.apiKey || firebaseConfig.apiKey === "YOUR_API_KEY") {
+                if (!firebaseConfig.apiKey || firebaseConfig.projectId === "YOUR_PROJECT_ID") { // projectIdもチェック
                     console.warn("Firebase config is missing or default. Ranking and logging will not work correctly.");
                     showMessage("Firebase設定が不足しています。ランキングとログ機能は動作しません。", 5000);
                     firebaseInitializedSuccessfully = false; // 初期化失敗フラグを立てる
-                    userIdDisplay.textContent = `ユーザーID: ローカルテスト`;
+                    userIdDisplay.textContent = `ユーザーID: ローカルテスト (Firebase未設定)`;
+                    sendRankingButton.disabled = true; // ランキングボタンを無効化
                     return; // ここで処理を終了
                 }
 
@@ -471,43 +472,42 @@
                 auth = getAuth(app);
                 firebaseInitializedSuccessfully = true; // 初期化成功フラグを立てる
 
-                onAuthStateChanged(auth, async (user) => {
-                    if (user) {
-                        userId = user.uid;
-                        userIdDisplay.textContent = `ユーザーID: ${userId}`;
+                // 認証ロジックを直接実行
+                try {
+                    if (initialAuthToken) {
+                        // Canvas環境からのカスタム認証トークンがあればそれを使用
+                        await signInWithCustomToken(auth, initialAuthToken);
                     } else {
-                        try {
-                            if (initialAuthToken) {
-                                await signInWithCustomToken(auth, initialAuthToken);
-                            } else {
-                                await signInAnonymously(auth);
-                            }
-                            userId = auth.currentUser?.uid || crypto.randomUUID(); // 認証後もuserIdを確実に設定
-                            userIdDisplay.textContent = `ユーザーID: ${userId}`;
-                        } catch (authError) {
-                            console.error("Firebase Auth Error:", authError);
-                            showMessage("Firebase認証に失敗しました。ランキング機能が制限される場合があります。", 5000);
-                            userId = crypto.randomUUID(); // 認証失敗時のフォールバックUUID
-                            userIdDisplay.textContent = `ユーザーID: 認証エラー (${userId.substring(0, 8)}...)`;
-                        }
+                        // それ以外の場合は匿名認証を使用 (誰でもアクセス可能にするため)
+                        await signInAnonymously(auth);
                     }
-                    isAuthReady = true;
+                    userId = auth.currentUser?.uid || crypto.randomUUID(); // 認証後もuserIdを確実に設定
+                    userIdDisplay.textContent = `ユーザーID: ${userId}`;
+                    isAuthReady = true; // 認証成功
                     console.log("Firebase Auth Ready. User ID:", userId);
-                    // 認証完了後にアクセスログを送信
-                    logAccess();
-                });
+                    logAccess(); // 認証完了後にアクセスログを送信
+                } catch (authError) {
+                    console.error("Firebase Authentication Failed:", authError);
+                    showMessage("Firebase認証に失敗しました。ランキング機能が利用できません。", 5000);
+                    userId = crypto.randomUUID(); // 認証失敗時のフォールバックUUID
+                    userIdDisplay.textContent = `ユーザーID: 認証失敗 (${userId.substring(0, 8)}...)`;
+                    isAuthReady = false; // 認証失敗
+                    firebaseInitializedSuccessfully = false; // ランキング関連機能は利用不可と見なす
+                    sendRankingButton.disabled = true; // ランキングボタンを無効化
+                }
+
             } catch (error) {
-                console.error("Error initializing Firebase:", error);
+                console.error("Firebase Initialization Failed:", error);
                 showMessage("Firebaseの初期化に失敗しました。ランキングとログ機能は動作しません。", 5000);
                 firebaseInitializedSuccessfully = false; // 初期化失敗フラグを立てる
                 userIdDisplay.textContent = `ユーザーID: 初期化失敗`;
+                sendRankingButton.disabled = true; // ランキングボタンを無効化
             }
         }
 
         // --- アクセスログをFirestoreに記録する関数 ---
         async function logAccess() {
-            // Firebaseが正常に初期化されていない場合はログを送信しない
-            // isAuthReady も確認することで、認証が完了するまで待つ
+            // Firebaseが正常に初期化されていない、または認証が完了していない場合はログを送信しない
             if (!firebaseInitializedSuccessfully || !db || !isAuthReady) {
                 console.warn("Firestore or Auth not ready for access logging. Skipping log.");
                 return;
@@ -874,7 +874,8 @@
                 } else {
                     allRankings.forEach((entry, index) => {
                         // 自分のエントリをハイライト (現在のuserIdと保存されたuserIdを比較)
-                        const isPlayerEntry = (playerBestScore && entry.userId === userId && entry.name === playerBestScore.name && entry.score === playerBestScore.score);
+                        // localStorageに保存されたベストスコアのuserIdと比較するように変更
+                        const isPlayerEntry = (playerBestScore && entry.userId === playerBestScore.userId && entry.name === playerBestScore.name && entry.score === playerBestScore.score);
                         const rowClass = isPlayerEntry ? 'bg-yellow-100 font-bold' : '';
                         rankingHtml += `
                             <tr class="${rowClass}">
