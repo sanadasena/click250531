@@ -1,0 +1,18 @@
+[
+  { "id": "char1", "name": "見習い剣士", "attack": 5, "rarity": "Common", "gachaTier": 1 },
+  { "id": "char2", "name": "見習い魔法使い", "attack": 7, "rarity": "Common", "gachaTier": 1 },
+  { "id": "char3", "name": "熟練の戦士", "attack": 15, "rarity": "Uncommon", "gachaTier": 1 },
+  { "id": "char4", "name": "癒しの僧侶", "attack": 3, "rarity": "Uncommon", "gachaTier": 1 },
+
+  { "id": "char9", "name": "炎の魔導士", "attack": 80, "rarity": "Uncommon", "gachaTier": 2 },
+  { "id": "char10", "name": "氷の騎士", "attack": 100, "rarity": "Rare", "gachaTier": 2 },
+  { "id": "char11", "name": "風の弓使い", "attack": 70, "rarity": "Uncommon", "gachaTier": 2 },
+  { "id": "char12", "name": "大地の守護者", "attack": 120, "rarity": "Rare", "gachaTier": 2 },
+
+  { "id": "char13", "name": "雷の神官", "attack": 300, "rarity": "Epic", "gachaTier": 3 },
+  { "id": "char14", "name": "星屑の賢者", "attack": 450, "rarity": "Epic", "gachaTier": 3 },
+  { "id": "char5", "name": "伝説のドラゴン", "attack": 500, "rarity": "Legendary", "gachaTier": 3 },
+  { "id": "char6", "name": "影の暗殺者", "attack": 250, "rarity": "Epic", "gachaTier": 3 },
+  { "id": "char7", "name": "聖なる騎士", "attack": 300, "rarity": "Epic", "gachaTier": 3 },
+  { "id": "char8", "name": "古代の賢者", "attack": 400, "rarity": "Legendary", "gachaTier": 3 }
+]
