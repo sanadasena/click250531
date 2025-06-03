@@ -1,0 +1,14 @@
+[
+  {"id": "item_wood", "name": "神秘の木材", "imageUrl": "https://placehold.co/32x32/8B4513/FFFFFF?text=木"},
+  {"id": "item_ore", "name": "輝く鉱石", "imageUrl": "https://placehold.co/32x32/A9A9A9/FFFFFF?text=鉱"},
+  {"id": "item_water", "name": "清らかな水", "imageUrl": "https://placehold.co/32x32/ADD8E6/FFFFFF?text=水"},
+  {"id": "item_herb", "name": "癒やしのハーブ", "imageUrl": "https://placehold.co/32x32/90EE90/FFFFFF?text=葉"},
+  {"id": "item_crystal", "name": "魔力結晶", "imageUrl": "https://placehold.co/32x32/8A2BE2/FFFFFF?text=晶"},
+  {"id": "item_silk", "name": "幻獣の絹", "imageUrl": "https://placehold.co/32x32/FFD700/000000?text=絹"},
+  {"id": "item_gem", "name": "精霊の宝珠", "imageUrl": "https://placehold.co/32x32/FF69B4/FFFFFF?text=宝"},
+  {"id": "item_mana", "name": "純粋なマナ", "imageUrl": "https://placehold.co/32x32/00CED1/FFFFFF?text=マ"},
+  {"id": "item_star_dust", "name": "星屑", "imageUrl": "https://placehold.co/32x32/FFFFF0/000000?text=星"},
+  {"id": "item_dragon_scale", "name": "竜の鱗", "imageUrl": "https://placehold.co/32x32/800000/FFFFFF?text=鱗"},
+  {"id": "item_phoenix_feather", "name": "不死鳥の羽根", "imageUrl": "https://placehold.co/32x32/FF4500/FFFFFF?text=羽"},
+  {"id": "item_griffin_claw", "name": "グリフィンの爪", "imageUrl": "https://placehold.co/32x32/DAA520/FFFFFF?text=爪"}
+]

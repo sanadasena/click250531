@@ -165,7 +165,7 @@
         }
         /* --- エフェクト関連のCSS終 --- */
 
-        /* ランキングモーダル */
+        /* モーダル共通スタイル */
         .modal-overlay {
             position: fixed;
             top: 0;
@@ -190,13 +190,13 @@
             border-radius: 1rem;
             padding: 2rem;
             width: 90%;
-            max-width: 700px; /* ランキングテーブルに合わせて幅を広げた */
+            max-width: 700px;
             box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
             position: relative;
             transform: translateY(-20px);
             transition: transform 0.3s ease-in-out;
-            max-height: 90vh; /* 高さ制限を追加 */
-            overflow-y: auto; /* スクロール可能にする */
+            max-height: 90vh;
+            overflow-y: auto;
         }
         .modal-overlay.show .modal-content {
             transform: translateY(0);
@@ -211,6 +211,7 @@
             cursor: pointer;
             color: #666;
         }
+        /* ランキングテーブル */
         .ranking-table {
             width: 100%;
             border-collapse: collapse;
@@ -228,6 +229,46 @@
         .ranking-table tr:nth-child(even) {
             background-color: #f8fafc;
         }
+        /* アイテムリスト */
+        .item-list-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 1rem;
+            padding: 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.5rem;
+            background-color: #f8fafc;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .item-card {
+            background-color: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        .item-card img {
+            width: 48px;
+            height: 48px;
+            object-fit: contain;
+            margin-bottom: 0.5rem;
+        }
+        .item-card .item-name {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #334155;
+            word-break: break-all; /* 長い名前の折り返し */
+        }
+        .item-card .item-quantity {
+            font-size: 0.8rem;
+            color: #64748b;
+        }
+
         /* Responsive adjustments */
         @media (max-width: 640px) {
             .game-container {
@@ -252,6 +293,9 @@
                 font-size: 0.75rem; /* 小さい画面での文字サイズ調整 */
                 padding: 0.5rem;
             }
+            .item-list-grid {
+                grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); /* モバイルで小さく */
+            }
         }
     </style>
 </head>
@@ -271,6 +315,7 @@
             <p>現在の力: <span id="powerDisplay" class="text-indigo-600 text-3xl">0</span></p>
             <p>プレミアム通貨: <span id="premiumCurrencyDisplay" class="text-amber-500 text-3xl">0</span></p>
             <p>現在のクリック力: <span id="currentClickPowerDisplay" class="text-purple-600 text-3xl">1</span></p>
+            <p>自動獲得力/秒: <span id="autoGainPerSecondDisplay" class="text-green-600 text-3xl">0</span></p>
         </div>
 
         <button id="clickButton" class="btn btn-primary text-2xl mt-4">
@@ -324,6 +369,11 @@
             </div>
         </div>
 
+        <div class="mt-6 p-4 bg-gray-100 rounded-xl shadow-md">
+            <h2 class="text-2xl font-bold text-gray-800 mb-3">アイテムリスト</h2>
+            <button id="showItemsButton" class="btn btn-secondary w-full">手に入れたアイテムを見る</button>
+        </div>
+
         <div class="mt-6">
             <div class="col-span-full text-2xl font-bold text-gray-800 mb-2">課金要素</div>
             <div class="upgrade-item">
@@ -364,6 +414,16 @@
         </div>
     </div>
 
+    <div id="itemListModalOverlay" class="modal-overlay">
+        <div class="modal-content">
+            <button class="modal-close-btn" id="closeItemListModal">&times;</button>
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">所持アイテム</h2>
+            <div id="itemListContainer" class="item-list-grid">
+                <p class="text-gray-500 text-sm italic">まだアイテムがありません。</p>
+            </div>
+        </div>
+    </div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -394,11 +454,15 @@
         let power = 0;
         let premiumCurrency = 0;
         let baseClickPower = 1;
-        let autoClickRate = 0;
+        let autoClickRate = 0; // 自動クリックアップグレードからの力
         let ownedCharacters = []; // 所持キャラクターのリスト
+        let acquiredTerritories = []; // 獲得した領土のリスト { id, name, basePowerPerSecond, upgradeLevel, specialProduct }
+        let items = []; // 所持アイテムのリスト { id, name, imageUrl, quantity }
 
-        // キャラクターデータはJSONファイルからロードされる
+        // 外部データ
         let characters = []; 
+        let allItems = []; // item.jsonからロードされる全アイテムデータ
+        let allTerritories = []; // territory.jsonからロードされる全領土データ
 
         const upgrades = {
             clickPower: { cost: 10, effect: 1, level: 0 },
@@ -408,6 +472,7 @@
 
         const gachaCost = 500;
         const GACHA_DUPLICATE_MULTIPLIER_BONUS = 0.1;
+        const TERRITORY_UPGRADE_MULTIPLIER_INCREMENT = 0.1; // 領土アップグレードごとの倍率増加
 
         let currentSessionStartTime = Date.now();
         let totalPlayedTimeMs = 0;
@@ -416,6 +481,7 @@
         const powerDisplay = document.getElementById('powerDisplay');
         const premiumCurrencyDisplay = document.getElementById('premiumCurrencyDisplay');
         const currentClickPowerDisplay = document.getElementById('currentClickPowerDisplay');
+        const autoGainPerSecondDisplay = document.getElementById('autoGainPerSecondDisplay'); // 自動獲得力/秒表示
         const clickButton = document.getElementById('clickButton');
         const messageBox = document.getElementById('messageBox');
         const effectContainer = document.getElementById('effectContainer');
@@ -446,23 +512,37 @@
         const closeRankingModalBtn = document.getElementById('closeRankingModal');
         const rankingListContainer = document.getElementById('rankingListContainer');
 
+        const showItemsButton = document.getElementById('showItemsButton'); // アイテムリスト表示ボタン
+        const itemListModalOverlay = document.getElementById('itemListModalOverlay'); // アイテムリストモーダル
+        const closeItemListModalBtn = document.getElementById('closeItemListModal'); // アイテムリストモーダル閉じるボタン
+        const itemListContainer = document.getElementById('itemListContainer'); // アイテムリスト表示コンテナ
+
         const particleColors = [
             ['#FFD700', '#FFA500'], ['#8A2BE2', '#4B0082'], ['#00CED1', '#40E0D0'],
             ['#FF69B4', '#FF1493'], ['#7FFF00', '#32CD32']
         ];
 
-        // --- キャラクターデータをロードする関数 ---
-        async function loadCharacters() {
+        // --- 外部データをロードする関数 ---
+        async function loadExternalData() {
             try {
-                const response = await fetch('characters.json');
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                characters = await response.json();
-                console.log('Characters loaded:', characters);
+                const [charactersRes, itemsRes, territoriesRes] = await Promise.all([
+                    fetch('characters.json'),
+                    fetch('item.json'),
+                    fetch('territory.json')
+                ]);
+
+                if (!charactersRes.ok) throw new Error(`HTTP error! status: ${charactersRes.status} for characters.json`);
+                if (!itemsRes.ok) throw new Error(`HTTP error! status: ${itemsRes.status} for item.json`);
+                if (!territoriesRes.ok) throw new Error(`HTTP error! status: ${territoriesRes.status} for territory.json`);
+
+                characters = await charactersRes.json();
+                allItems = await itemsRes.json();
+                allTerritories = await territoriesRes.json();
+
+                console.log('External data loaded:', { characters, allItems, allTerritories });
             } catch (error) {
-                console.error('Failed to load characters.json:', error);
-                showMessage('キャラクターデータの読み込みに失敗しました。', 5000);
+                console.error('Failed to load external JSON data:', error);
+                showMessage('ゲームデータの読み込みに失敗しました。', 5000);
             }
         }
 
@@ -483,15 +563,14 @@
                 auth = getAuth(app);
                 firebaseInitializedSuccessfully = true;
 
-                // Firebase認証の状態監視
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
                         userId = user.uid;
                         userIdDisplay.textContent = `ユーザーID: ${userId}`;
                         isAuthReady = true;
                         console.log("Firebase Auth Ready. User ID:", userId);
-                        logAccess(); // 認証完了後にアクセスログを送信
-                        sendRankingButton.disabled = false; // 認証成功したらランキングボタンを有効化
+                        logAccess();
+                        sendRankingButton.disabled = false;
                     } else {
                         try {
                             if (initialAuthToken) {
@@ -504,7 +583,7 @@
                             isAuthReady = true;
                             console.log("Firebase Auth Ready (Anonymous). User ID:", userId);
                             logAccess();
-                            sendRankingButton.disabled = false; // 認証成功したらランキングボタンを有効化
+                            sendRankingButton.disabled = false;
                         } catch (authError) {
                             console.error("Firebase Authentication Failed:", authError);
                             showMessage("Firebase認証に失敗しました。ランキング機能は利用できません。", 5000);
@@ -512,7 +591,7 @@
                             userIdDisplay.textContent = `ユーザーID: 認証失敗 (${userId.substring(0, 8)}...)`;
                             isAuthReady = false;
                             firebaseInitializedSuccessfully = false;
-                            sendRankingButton.disabled = true; // 認証失敗したらランキングボタンを無効化
+                            sendRankingButton.disabled = true;
                         }
                     }
                 });
@@ -521,7 +600,7 @@
                 showMessage("Firebaseの初期化に失敗しました。ランキングとログ機能は動作しません。", 5000);
                 firebaseInitializedSuccessfully = false;
                 userIdDisplay.textContent = `ユーザーID: 初期化失敗`;
-                sendRankingButton.disabled = true; // 初期化失敗したらランキングボタンを無効化
+                sendRankingButton.disabled = true;
             }
         }
 
@@ -558,8 +637,10 @@
                 power: power,
                 premiumCurrency: premiumCurrency,
                 baseClickPower: baseClickPower,
-                autoClickRate: autoClickRate,
+                autoClickRate: autoClickRate, // この時点のautoClickRateは計算済み
                 ownedCharacters: ownedCharacters,
+                acquiredTerritories: acquiredTerritories, // 領土データを保存
+                items: items, // アイテムデータを保存
                 upgrades: {
                     clickPower: { level: upgrades.clickPower.level, cost: upgrades.clickPower.cost },
                     autoClick: { level: upgrades.autoClick.level, cost: upgrades.autoClick.cost },
@@ -578,8 +659,10 @@
                 power = data.power || 0;
                 premiumCurrency = data.premiumCurrency || 0;
                 baseClickPower = data.baseClickPower || 1;
-                autoClickRate = data.autoClickRate || 0;
+                autoClickRate = data.autoClickRate || 0; // ロード時に自動獲得力もロード
                 ownedCharacters = data.ownedCharacters || [];
+                acquiredTerritories = data.acquiredTerritories || []; // 領土データをロード
+                items = data.items || []; // アイテムデータをロード
                 
                 upgrades.clickPower.level = data.upgrades?.clickPower?.level || 0;
                 upgrades.clickPower.cost = data.upgrades?.clickPower?.cost || 10;
@@ -599,25 +682,36 @@
         // --- ゲームロジック関数 ---
         function calculateTotalClickPower() {
             let total = baseClickPower;
-            total += upgrades.clickPower.level * upgrades.clickPower.effect;
-            total += upgrades.ultimatePower.level * upgrades.ultimatePower.effect;
+            total += (upgrades.clickPower.level || 0) * (upgrades.clickPower.effect || 0);
+            total += (upgrades.ultimatePower.level || 0) * (upgrades.ultimatePower.effect || 0);
             ownedCharacters.forEach(char => {
-                total += char.attack * char.multiplier;
+                total += char.attack * (char.multiplier || 1.0);
             });
             return Math.ceil(total);
+        }
+
+        // 自動獲得力/秒を計算する関数
+        function calculateAutoGainPerSecond() {
+            let totalAutoGain = (upgrades.autoClick.level || 0) * (upgrades.autoClick.effect || 0);
+            acquiredTerritories.forEach(territory => {
+                // 領土の基本収入 * (1 + 0.1 * アップグレードレベル)
+                totalAutoGain += territory.basePowerPerSecond * (1 + (territory.upgradeLevel || 0) * TERRITORY_UPGRADE_MULTIPLIER_INCREMENT);
+            });
+            return Math.ceil(totalAutoGain);
         }
 
         function updateUI() {
             powerDisplay.textContent = power.toLocaleString();
             premiumCurrencyDisplay.textContent = premiumCurrency.toLocaleString();
             currentClickPowerDisplay.textContent = calculateTotalClickPower().toLocaleString();
+            autoGainPerSecondDisplay.textContent = calculateAutoGainPerSecond().toLocaleString(); // 自動獲得力/秒を更新
 
             clickPowerUpgradeCostDisplay.textContent = upgrades.clickPower.cost.toLocaleString();
             clickPowerUpgradeValueDisplay.textContent = upgrades.clickPower.effect.toLocaleString();
             buyClickPowerUpgradeBtn.disabled = power < upgrades.clickPower.cost;
 
             autoClickCostDisplay.textContent = upgrades.autoClick.cost.toLocaleString();
-            autoClickValueDisplay.textContent = autoClickRate.toLocaleString();
+            autoClickValueDisplay.textContent = upgrades.autoClick.effect.toLocaleString(); // ここはアップグレードごとの効果を表示
             buyAutoClickUpgradeBtn.disabled = power < upgrades.autoClick.cost;
 
             ultimatePowerCostDisplay.textContent = upgrades.ultimatePower.cost.toLocaleString();
@@ -638,12 +732,48 @@
                     if (char.multiplier > 1) {
                         multiplierText = ` (x${char.multiplier.toFixed(1)}倍)`;
                     }
-                    const displayedAttack = Math.ceil(char.attack * char.multiplier);
+                    const displayedAttack = Math.ceil(char.attack * (char.multiplier || 1.0));
                     charItem.innerHTML = `
                         <span class="font-medium">${char.name}</span>
                         <span class="text-sm text-gray-600">攻撃力: ${displayedAttack}${multiplierText}</span>
                     `;
                     ownedCharactersList.appendChild(charItem);
+                });
+            }
+        }
+
+        // アイテムを所持リストに追加する関数
+        function addItem(itemId, quantity = 1) {
+            const existingItemIndex = items.findIndex(item => item.id === itemId);
+            if (existingItemIndex !== -1) {
+                items[existingItemIndex].quantity += quantity;
+            } else {
+                const itemData = allItems.find(item => item.id === itemId);
+                if (itemData) {
+                    items.push({ ...itemData, quantity: quantity });
+                } else {
+                    console.warn(`Item with ID ${itemId} not found in allItems.`);
+                }
+            }
+            updateItemListUI(); // アイテムリストUIを更新
+            saveGame(); // アイテム追加時に保存
+        }
+
+        // アイテムリストモーダルのUIを更新する関数
+        function updateItemListUI() {
+            itemListContainer.innerHTML = ''; // リストをクリア
+            if (items.length === 0) {
+                itemListContainer.innerHTML = '<p class="text-gray-500 text-sm italic col-span-full">まだアイテムがありません。</p>';
+            } else {
+                items.forEach(item => {
+                    const itemCard = document.createElement('div');
+                    itemCard.className = 'item-card';
+                    itemCard.innerHTML = `
+                        <img src="${item.imageUrl}" alt="${item.name}" onerror="this.onerror=null;this.src='https://placehold.co/32x32/CCCCCC/000000?text=？';">
+                        <span class="item-name">${item.name}</span>
+                        <span class="item-quantity">x${item.quantity}</span>
+                    `;
+                    itemListContainer.appendChild(itemCard);
                 });
             }
         }
@@ -721,6 +851,7 @@
                 upgrades.clickPower.cost = Math.floor(upgrades.clickPower.cost * 1.5);
                 showMessage(`クリック力強化！`);
                 updateUI();
+                saveGame();
             } else {
                 showMessage('力が足りません！');
             }
@@ -729,11 +860,11 @@
         buyAutoClickUpgradeBtn.addEventListener('click', () => {
             if (power >= upgrades.autoClick.cost) {
                 power -= upgrades.autoClick.cost;
-                autoClickRate += upgrades.autoClick.effect;
+                upgrades.autoClick.level++; // レベルを上げる
                 upgrades.autoClick.cost = Math.floor(upgrades.autoClick.cost * 1.8);
-                upgrades.autoClick.level++;
-                showMessage(`自動クリック購入！ 毎秒 ${autoClickRate} 力獲得！`);
+                showMessage(`自動クリック購入！ 毎秒 ${upgrades.autoClick.effect} 力獲得！`); // 効果は固定
                 updateUI();
+                saveGame();
             } else {
                 showMessage('力が足りません！');
             }
@@ -743,6 +874,7 @@
             premiumCurrency += 100;
             showMessage('プレミアム通貨を100購入しました！');
             updateUI();
+            saveGame();
         });
 
         buyUltimatePowerBtn.addEventListener('click', () => {
@@ -751,6 +883,7 @@
                 upgrades.ultimatePower.level++;
                 showMessage(`究極の力を手に入れた！`);
                 updateUI();
+                saveGame();
             } else {
                 showMessage('プレミアム通貨が足りません！');
             }
@@ -759,8 +892,12 @@
         drawGachaBtn.addEventListener('click', () => {
             if (power >= gachaCost) {
                 power -= gachaCost;
-                // ティア1のキャラクターのみをフィルタリング
                 const tier1Characters = characters.filter(char => char.gachaTier === 1);
+                if (tier1Characters.length === 0) {
+                    showMessage('ガチャキャラクターデータが見つかりません。', 3000);
+                    updateUI();
+                    return;
+                }
                 const randomIndex = Math.floor(Math.random() * tier1Characters.length);
                 const newCharacterBase = tier1Characters[randomIndex];
                 
@@ -775,22 +912,37 @@
                     showMessage(`${newCharacterBase.name} を獲得しました！ (攻撃力: ${newCharacterBase.attack})`);
                 }
                 updateUI();
+                saveGame();
             } else {
                 showMessage(`ガチャを引くには ${gachaCost} 力が必要です！`);
             }
         });
+
+        // --- アイテムリストモーダル関連 ---
+        showItemsButton.addEventListener('click', () => {
+            updateItemListUI(); // 最新のアイテムリストを反映
+            itemListModalOverlay.classList.add('show');
+        });
+
+        closeItemListModalBtn.addEventListener('click', () => {
+            itemListModalOverlay.classList.remove('show');
+        });
+
 
         // --- ランキングシステム (Firestore連携) ---
 
         let playerBestScore = JSON.parse(localStorage.getItem(LOCAL_STORAGE_BEST_SCORE_KEY)) || null;
 
         function calculateOverallScore() {
-            const totalEffectiveCharacterAttack = ownedCharacters.reduce((sum, char) => sum + Math.ceil(char.attack * char.multiplier), 0);
+            const totalEffectiveCharacterAttack = ownedCharacters.reduce((sum, char) => sum + Math.ceil(char.attack * (char.multiplier || 1.0)), 0);
+            const totalTerritoryPower = acquiredTerritories.reduce((sum, terr) => sum + Math.ceil(terr.basePowerPerSecond * (1 + (terr.upgradeLevel || 0) * TERRITORY_UPGRADE_MULTIPLIER_INCREMENT)), 0);
+
             return Math.ceil(
                 power * 1
                 + calculateTotalClickPower() * 100
                 + totalEffectiveCharacterAttack * 1000
                 + premiumCurrency * 5000
+                + totalTerritoryPower * 50 // 領土収入もスコアに加算
             );
         }
 
@@ -800,7 +952,6 @@
                 showMessage('名前を入力してください！');
                 return;
             }
-            // Firebaseが正常に初期化されていない場合はランキング送信をブロック
             if (!firebaseInitializedSuccessfully || !isAuthReady) {
                 showMessage('Firebaseが初期化されていないか、認証が完了していません。ランキング機能は利用できません。', 3000);
                 return;
@@ -808,20 +959,22 @@
 
             const currentScore = calculateOverallScore();
             const currentClickPower = calculateTotalClickPower();
-            const totalEffectiveCharacterAttack = ownedCharacters.reduce((sum, char) => sum + Math.ceil(char.attack * char.multiplier), 0);
+            const totalEffectiveCharacterAttack = ownedCharacters.reduce((sum, char) => sum + Math.ceil(char.attack * (char.multiplier || 1.0)), 0);
+            const totalTerritoryPower = acquiredTerritories.reduce((sum, terr) => sum + Math.ceil(terr.basePowerPerSecond * (1 + (terr.upgradeLevel || 0) * TERRITORY_UPGRADE_MULTIPLIER_INCREMENT)), 0);
+
 
             const newScoreEntry = {
-                userId: userId, // ユーザーIDも保存
+                userId: userId,
                 name: playerName,
                 score: currentScore,
                 power: power,
                 clickPower: currentClickPower,
                 charAttack: totalEffectiveCharacterAttack,
                 premium: premiumCurrency,
-                timestamp: serverTimestamp() // サーバータイムスタンプ
+                territoryPower: totalTerritoryPower, // 領土収入もランキングデータに追加
+                timestamp: serverTimestamp()
             };
 
-            // 自分のベストスコアを更新 (localStorage)
             if (!playerBestScore || newScoreEntry.score > playerBestScore.score) {
                 playerBestScore = newScoreEntry;
                 localStorage.setItem(LOCAL_STORAGE_BEST_SCORE_KEY, JSON.stringify(playerBestScore));
@@ -830,7 +983,6 @@
                 showMessage('現在のスコアはハイスコアを更新しませんでした。');
             }
 
-            // Firestoreにデータを送信
             try {
                 const rankingsCollectionRef = collection(db, `artifacts/${appId}/public/data/rankings`);
                 await addDoc(rankingsCollectionRef, newScoreEntry);
@@ -840,14 +992,13 @@
                 showMessage('ランキングデータの送信に失敗しました。', 5000);
             }
 
-            displayRanking(); // ランキング表示
+            displayRanking();
         });
 
         async function displayRanking() {
             rankingListContainer.innerHTML = '<p class="text-center text-gray-600">ランキングデータを読み込み中...</p>';
             rankingModalOverlay.classList.add('show');
 
-            // Firebaseが正常に初期化されていない場合はランキング表示をブロック
             if (!firebaseInitializedSuccessfully || !db || !isAuthReady) {
                 rankingListContainer.innerHTML = '<p class="text-center text-red-500">Firebaseが初期化されていないため、ランキング機能は利用できません。</p>';
                 return;
@@ -855,15 +1006,13 @@
 
             try {
                 const rankingsCollectionRef = collection(db, `artifacts/${appId}/public/data/rankings`);
-                // orderByは使用せず、全てのドキュメントを取得してクライアント側でソート
                 const querySnapshot = await getDocs(rankingsCollectionRef);
 
                 let allRankings = [];
                 querySnapshot.forEach((doc) => {
-                    allRankings.push({ id: doc.id, ...doc.data() }); // ドキュメントIDも取得
+                    allRankings.push({ id: doc.id, ...doc.data() });
                 });
 
-                // スコアの高い順にソート
                 allRankings.sort((a, b) => b.score - a.score);
 
                 let rankingHtml = `
@@ -877,17 +1026,16 @@
                                 <th>クリック力</th>
                                 <th>キャラ攻撃力</th>
                                 <th>プレミアム通貨</th>
+                                <th>領土収入/秒</th>
                             </tr>
                         </thead>
                         <tbody>
                 `;
 
                 if (allRankings.length === 0) {
-                    rankingHtml += `<tr><td colspan="7">まだランキングデータがありません。</td></tr>`;
+                    rankingHtml += `<tr><td colspan="8">まだランキングデータがありません。</td></tr>`;
                 } else {
                     allRankings.forEach((entry, index) => {
-                        // 自分のエントリをハイライト (現在のuserIdと保存されたuserIdを比較)
-                        // localStorageに保存されたベストスコアのuserIdと比較するように変更
                         const isPlayerEntry = (playerBestScore && entry.userId === playerBestScore.userId && entry.name === playerBestScore.name && entry.score === playerBestScore.score);
                         const rowClass = isPlayerEntry ? 'bg-yellow-100 font-bold' : '';
                         rankingHtml += `
@@ -895,10 +1043,11 @@
                                 <td>${index + 1}</td>
                                 <td>${entry.name}</td>
                                 <td>${entry.score.toLocaleString()}</td>
-                                <td>${entry.power.toLocaleString()}</td>
-                                <td>${entry.clickPower.toLocaleString()}</td>
-                                <td>${entry.charAttack.toLocaleString()}</td>
-                                <td>${entry.premium.toLocaleString()}</td>
+                                <td>${(entry.power || 0).toLocaleString()}</td>
+                                <td>${(entry.clickPower || 0).toLocaleString()}</td>
+                                <td>${(entry.charAttack || 0).toLocaleString()}</td>
+                                <td>${(entry.premium || 0).toLocaleString()}</td>
+                                <td>${(entry.territoryPower || 0).toLocaleString()}</td>
                             </tr>
                         `;
                     });
@@ -921,16 +1070,18 @@
         });
 
         // --- 初期化処理 ---
-        // キャラクターデータを先にロード
-        loadCharacters().then(() => {
+        // 外部データを先にロード
+        loadExternalData().then(() => {
             // Firebase初期化
-            initializeFirebase(); // Firebaseの初期化と認証を開始
+            initializeFirebase();
 
             // ゲームデータをロード
             loadGame();
-            // 自動クリックのタイマー
+            // 自動獲得力の計算はロード後に実行される
+            
+            // 自動クリックのタイマー (自動獲得力/秒を使用)
             setInterval(() => {
-                power += autoClickRate;
+                power += calculateAutoGainPerSecond(); // 自動獲得力/秒を加算
                 updateUI();
             }, 1000);
 
@@ -940,6 +1091,7 @@
             // 初期UIの更新
             updateUI();
             updateElapsedTime();
+            updateItemListUI(); // 初期アイテムリストUIの更新
         });
     </script>
 </body>

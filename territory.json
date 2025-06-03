@@ -1,0 +1,74 @@
+[
+  {
+    "id": "territory_forest",
+    "name": "囁きの森",
+    "basePowerPerSecond": 100,
+    "cost": 5000000,
+    "rarity": "集落",
+    "specialProduct": { "id": "item_wood", "name": "神秘の木材" }
+  },
+  {
+    "id": "territory_mine",
+    "name": "忘れられた鉱山",
+    "basePowerPerSecond": 150,
+    "cost": 7500000,
+    "rarity": "村",
+    "specialProduct": { "id": "item_ore", "name": "輝く鉱石" }
+  },
+  {
+    "id": "territory_spring",
+    "name": "聖なる泉",
+    "basePowerPerSecond": 200,
+    "cost": 10000000,
+    "rarity": "町",
+    "specialProduct": { "id": "item_water", "name": "清らかな水" }
+  },
+  {
+    "id": "territory_plains",
+    "name": "広大な平原",
+    "basePowerPerSecond": 250,
+    "cost": 12000000,
+    "rarity": "都市",
+    "specialProduct": { "id": "item_herb", "name": "癒やしのハーブ" }
+  },
+  {
+    "id": "territory_ruins",
+    "name": "古代遺跡",
+    "basePowerPerSecond": 300,
+    "cost": 15000000,
+    "rarity": "メガロポリス",
+    "specialProduct": { "id": "item_crystal", "name": "魔力結晶" }
+  },
+  {
+    "id": "territory_sky_island",
+    "name": "天空の島",
+    "basePowerPerSecond": 500,
+    "cost": 20000000,
+    "rarity": "グローバル都市",
+    "specialProduct": { "id": "item_silk", "name": "幻獣の絹" }
+  },
+  {
+    "id": "territory_volcano",
+    "name": "灼熱の火山帯",
+    "basePowerPerSecond": 700,
+    "cost": 30000000,
+    "rarity": "グローバル都市",
+    "specialProduct": { "id": "item_dragon_scale", "name": "竜の鱗" }
+  },
+  {
+    "id": "territory_sacred_mountain",
+    "name": "聖なる霊峰",
+    "basePowerPerSecond": 1000,
+    "cost": 50000000,
+    "rarity": "グローバル都市",
+    "specialProduct": { "id": "item_phoenix_feather", "name": "不死鳥の羽根" }
+  },
+  {
+    "id": "territory_floating_continent",
+    "name": "浮遊大陸",
+    "basePowerPerSecond": 1500,
+    "cost": 75000000,
+    "rarity": "グローバル都市",
+    "specialProduct": { "id": "item_griffin_claw", "name": "グリフィンの爪" }
+  }
+]
