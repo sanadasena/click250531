@@ -1,0 +1,37 @@
+[
+  {
+    "id": "vr_5",
+    "name": "低頻度クリティカル (平均5回)",
+    "averageOccurrences": 5,
+    "minBaseMultiplier": 3,
+    "maxBaseMultiplier": 6
+  },
+  {
+    "id": "vr_10",
+    "name": "中頻度クリティカル (平均10回)",
+    "averageOccurrences": 10,
+    "minBaseMultiplier": 6,
+    "maxBaseMultiplier": 12
+  },
+  {
+    "id": "vr_20",
+    "name": "高頻度クリティカル (平均20回)",
+    "averageOccurrences": 20,
+    "minBaseMultiplier": 10,
+    "maxBaseMultiplier": 20
+  },
+  {
+    "id": "vr_50",
+    "name": "超高頻度クリティカル (平均50回)",
+    "averageOccurrences": 50,
+    "minBaseMultiplier": 30,
+    "maxBaseMultiplier": 60
+  },
+  {
+    "id": "vr_100",
+    "name": "激レアクリティカル (平均100回)",
+    "averageOccurrences": 100,
+    "minBaseMultiplier": 60,
+    "maxBaseMultiplier": 120
+  }
+]
