@@ -589,13 +589,14 @@
         // --- 外部データをロードする関数 ---
         async function loadExternalData() {
             try {
-                const [charactersRes, itemsRes, territoriesRes, criticalRes] = await Promise.all([
-                    // アップロードされたファイルは 'uploaded:' プレフィックスを使用してアクセスします
-                    fetch('uploaded:characters.json'),
-                    fetch('uploaded:item.json'),
-                    fetch('uploaded:territory.json'),
-                    fetch('uploaded:critical.json') // critical.jsonをロード
-                ]);
+                console.log(`Attempting to fetch: uploaded:characters.json`);
+                const charactersRes = await fetch('uploaded:characters.json');
+                console.log(`Attempting to fetch: uploaded:item.json`);
+                const itemsRes = await fetch('uploaded:item.json');
+                console.log(`Attempting to fetch: uploaded:territory.json`);
+                const territoriesRes = await fetch('uploaded:territory.json');
+                console.log(`Attempting to fetch: uploaded:critical.json`);
+                const criticalRes = await fetch('uploaded:critical.json'); // critical.jsonをロード
 
                 if (!charactersRes.ok) throw new Error(`HTTP error! status: ${charactersRes.status} for characters.json`);
                 if (!itemsRes.ok) throw new Error(`HTTP error! status: ${itemsRes.status} for item.json`);
