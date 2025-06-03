@@ -127,6 +127,107 @@
         .character-item:last-child {
             border-bottom: none;
         }
+
+        /* --- エフェクト関連のCSS --- */
+        #effectContainer {
+            position: fixed; /* 画面全体に固定 */
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* クリックイベントを透過させる */
+            overflow: hidden; /* 画面外に出たエフェクトを非表示 */
+            z-index: 999; /* 他の要素の上に表示 */
+        }
+
+        .particle {
+            position: absolute;
+            border-radius: 50%; /* 円形 */
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0); /* 初期状態は中央に小さく */
+            animation: particle-fade-move 1s forwards ease-out; /* アニメーション */
+        }
+
+        /* エフェクトのアニメーション定義 */
+        @keyframes particle-fade-move {
+            0% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(0); /* 初期は透明で小さい */
+            }
+            50% {
+                opacity: 0.8;
+                transform: translate(var(--translate-x), var(--translate-y)) scale(1); /* 中間で少し移動し拡大 */
+            }
+            100% {
+                opacity: 0;
+                transform: translate(var(--translate-x), var(--translate-y)) scale(1.5); /* 最終的に透明になりさらに拡大 */
+            }
+        }
+        /* --- エフェクト関連のCSS終 --- */
+
+        /* ランキングモーダル */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1001;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+        }
+        .modal-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        .modal-content {
+            background-color: #ffffff;
+            border-radius: 1rem;
+            padding: 2rem;
+            width: 90%;
+            max-width: 700px; /* ランキングテーブルに合わせて幅を広げた */
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+            position: relative;
+            transform: translateY(-20px);
+            transition: transform 0.3s ease-in-out;
+            max-height: 90vh; /* 高さ制限を追加 */
+            overflow-y: auto; /* スクロール可能にする */
+        }
+        .modal-overlay.show .modal-content {
+            transform: translateY(0);
+        }
+        .modal-close-btn {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #666;
+        }
+        .ranking-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+        .ranking-table th, .ranking-table td {
+            border: 1px solid #e2e8f0;
+            padding: 0.75rem;
+            text-align: left;
+        }
+        .ranking-table th {
+            background-color: #f0f2f5;
+            font-weight: bold;
+        }
+        .ranking-table tr:nth-child(even) {
+            background-color: #f8fafc;
+        }
         /* Responsive adjustments */
         @media (max-width: 640px) {
             .game-container {
@@ -144,6 +245,13 @@
             .upgrade-item button {
                 width: 100%;
             }
+            .modal-content {
+                padding: 1.5rem;
+            }
+            .ranking-table th, .ranking-table td {
+                font-size: 0.75rem; /* 小さい画面での文字サイズ調整 */
+                padding: 0.5rem;
+            }
         }
     </style>
 </head>
@@ -151,10 +259,18 @@
     <div class="game-container">
         <h1 class="text-4xl font-extrabold text-gray-900 mb-4">クリックで強くなるゲーム</h1>
 
+        <div class="bg-blue-100 text-blue-800 p-3 rounded-lg mb-4 font-semibold text-lg">
+            ページを開いてからの時間: <span id="elapsedTimeDisplay">000日00時間00分00秒.000</span>
+        </div>
+
+        <div class="bg-gray-100 text-gray-700 p-2 rounded-lg mb-4 text-sm">
+            <span id="userIdDisplay">ユーザーID: 読み込み中...</span>
+        </div>
+
         <div class="flex flex-col md:flex-row justify-around items-center gap-4 text-xl font-semibold text-gray-700">
             <p>現在の力: <span id="powerDisplay" class="text-indigo-600 text-3xl">0</span></p>
             <p>プレミアム通貨: <span id="premiumCurrencyDisplay" class="text-amber-500 text-3xl">0</span></p>
-            <p>所持キャラ: <span id="ownedCharactersCount" class="text-green-600 text-3xl">0</span></p>
+            <p>現在のクリック力: <span id="currentClickPowerDisplay" class="text-purple-600 text-3xl">1</span></p>
         </div>
 
         <button id="clickButton" class="btn btn-primary text-2xl mt-4">
@@ -187,11 +303,18 @@
             <div class="col-span-full text-2xl font-bold text-gray-800 mb-2">ガチャ</div>
             <div class="upgrade-item">
                 <div>
-                    <p class="font-bold text-lg">キャラガチャ</p>
+                    <p class="font-bold text-lg">キャラガチャ (500力)</p>
                     <p class="text-sm text-gray-600">新しいキャラクターをゲット！</p>
                     <p class="text-sm text-gray-600">コスト: <span id="gachaCost">500</span> 力</p>
                 </div>
                 <button id="drawGacha" class="btn btn-gacha text-base">ガチャを引く</button>
+            </div>
+            <div class="upgrade-item mt-4">
+                <div>
+                    <p class="font-bold text-lg">高額ガチャページへ</p>
+                    <p class="text-sm text-gray-600">さらに強力なキャラを狙う！</p>
+                </div>
+                <a href="gacha.html" class="btn btn-gacha text-base">移動する</a>
             </div>
             <div class="mt-4">
                 <p class="text-lg font-semibold text-gray-800">所持キャラクター:</p>
@@ -221,60 +344,84 @@
                 <button id="buyUltimatePower" class="btn btn-premium text-base">購入</button>
             </div>
         </div>
+
+        <div class="mt-6 p-4 bg-gray-100 rounded-xl shadow-md">
+            <h2 class="text-2xl font-bold text-gray-800 mb-3">ランキング</h2>
+            <input type="text" id="playerNameInput" placeholder="あなたの名前を入力" class="w-full p-3 mb-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <button id="sendRankingButton" class="btn btn-primary w-full">ランキングにデータを送信！</button>
+        </div>
     </div>
 
     <div id="messageBox" class="message-box"></div>
+    <div id="effectContainer"></div>
 
-    <script>
-        // ゲームの状態変数
-        let power = 0; // 現在の力
-        let premiumCurrency = 0; // プレミアム通貨
-        let clickPower = 1; // 1クリックあたりの力 (基本値 + キャラクター攻撃力 + アップグレード)
-        let autoClickRate = 0; // 自動クリックで毎秒獲得する力
+    <div id="rankingModalOverlay" class="modal-overlay">
+        <div class="modal-content">
+            <button class="modal-close-btn" id="closeRankingModal">&times;</button>
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">ランキング</h2>
+            <div id="rankingListContainer">
+                </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Canvas環境から提供されるグローバル変数、またはフォールバック
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        // Firebaseコンソールからコピーした実際のfirebaseConfigオブジェクトをここに貼り付けます
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "AIzaSyCNPNjx2MSD7OLu5j_hb_mp0nuJsseuY70",
+            authDomain: "click250531.firebaseapp.com",
+            projectId: "click250531",
+            storageBucket: "click250531.firebasestorage.app",
+            messagingSenderId: "179430103455",
+            appId: "1:179430103455:web:4f42776a4b0bcffb6ac5aa",
+            measurementId: "G-XMX4PP3NSX"
+        };
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app;
+        let db;
+        let auth;
+        let userId = 'anonymous'; // デフォルトは匿名
+        let isAuthReady = false; // Firebase認証準備完了フラグ
+        let firebaseInitializedSuccessfully = false; // Firebaseの初期化が成功したかどうかのフラグ
+
+        // --- ゲームの状態変数 ---
+        let power = 0;
+        let premiumCurrency = 0;
+        let baseClickPower = 1;
+        let autoClickRate = 0;
         let ownedCharacters = []; // 所持キャラクターのリスト
 
-        // キャラクターデータ
-        const characters = [
-            { id: 'char1', name: '見習い剣士', attack: 5, rarity: 'Common' },
-            { id: 'char2', name: '見習い魔法使い', attack: 7, rarity: 'Common' },
-            { id: 'char3', name: '熟練の戦士', attack: 15, rarity: 'Uncommon' },
-            { id: 'char4', name: '癒しの僧侶', attack: 3, rarity: 'Uncommon' },
-            { id: 'char5', name: '伝説のドラゴン', attack: 50, rarity: 'Rare' },
-            { id: 'char6', name: '影の暗殺者', attack: 25, rarity: 'Rare' },
-            { id: 'char7', name: '聖なる騎士', attack: 30, rarity: 'Rare' },
-            { id: 'char8', name: '古代の賢者', attack: 40, rarity: 'Rare' }
-        ];
+        // キャラクターデータはJSONファイルからロードされる
+        let characters = []; 
 
-        // アップグレードのコストと効果
         const upgrades = {
-            clickPower: {
-                cost: 10,
-                effect: 1,
-                level: 0
-            },
-            autoClick: {
-                cost: 100,
-                effect: 1,
-                level: 0
-            },
-            ultimatePower: {
-                cost: 50, // プレミアム通貨でのコスト
-                effect: 1000,
-                level: 0
-            }
+            clickPower: { cost: 10, effect: 1, level: 0 },
+            autoClick: { cost: 100, effect: 1, level: 0 },
+            ultimatePower: { cost: 50, effect: 1000, level: 0 }
         };
 
-        // ガチャのコスト
         const gachaCost = 500;
+        const GACHA_DUPLICATE_MULTIPLIER_BONUS = 0.1;
 
-        // DOM要素の取得
+        let currentSessionStartTime = Date.now();
+        let totalPlayedTimeMs = 0;
+
+        // --- DOM要素の取得 ---
         const powerDisplay = document.getElementById('powerDisplay');
         const premiumCurrencyDisplay = document.getElementById('premiumCurrencyDisplay');
-        const ownedCharactersCountDisplay = document.getElementById('ownedCharactersCount');
+        const currentClickPowerDisplay = document.getElementById('currentClickPowerDisplay');
         const clickButton = document.getElementById('clickButton');
         const messageBox = document.getElementById('messageBox');
+        const effectContainer = document.getElementById('effectContainer');
+        const elapsedTimeDisplay = document.getElementById('elapsedTimeDisplay');
+        const userIdDisplay = document.getElementById('userIdDisplay');
 
-        // アップグレードボタンと表示要素
         const buyClickPowerUpgradeBtn = document.getElementById('buyClickPowerUpgrade');
         const clickPowerUpgradeCostDisplay = document.getElementById('clickPowerUpgradeCost');
         const clickPowerUpgradeValueDisplay = document.getElementById('clickPowerUpgradeValue');
@@ -289,55 +436,218 @@
         const ultimatePowerCostDisplay = document.getElementById('ultimatePowerCost');
         const ultimatePowerValueDisplay = document.getElementById('ultimatePowerValue');
 
-        // ガチャ関連DOM要素
         const drawGachaBtn = document.getElementById('drawGacha');
         const gachaCostDisplay = document.getElementById('gachaCost');
         const ownedCharactersList = document.getElementById('ownedCharactersList');
 
+        const playerNameInput = document.getElementById('playerNameInput');
+        const sendRankingButton = document.getElementById('sendRankingButton');
+        const rankingModalOverlay = document.getElementById('rankingModalOverlay');
+        const closeRankingModalBtn = document.getElementById('closeRankingModal');
+        const rankingListContainer = document.getElementById('rankingListContainer');
 
-        // UIを更新する関数
+        const particleColors = [
+            ['#FFD700', '#FFA500'], ['#8A2BE2', '#4B0082'], ['#00CED1', '#40E0D0'],
+            ['#FF69B4', '#FF1493'], ['#7FFF00', '#32CD32']
+        ];
+
+        // --- キャラクターデータをロードする関数 ---
+        async function loadCharacters() {
+            try {
+                const response = await fetch('characters.json');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                characters = await response.json();
+                console.log('Characters loaded:', characters);
+            } catch (error) {
+                console.error('Failed to load characters.json:', error);
+                showMessage('キャラクターデータの読み込みに失敗しました。', 5000);
+            }
+        }
+
+        // --- Firebase 初期化と認証 ---
+        async function initializeFirebase() {
+            try {
+                if (!firebaseConfig.apiKey || firebaseConfig.projectId === "YOUR_PROJECT_ID") {
+                    console.warn("Firebase config is missing or default. Ranking and logging will not work correctly.");
+                    showMessage("Firebase設定が不足しています。ランキングとログ機能は動作しません。", 5000);
+                    firebaseInitializedSuccessfully = false;
+                    userIdDisplay.textContent = `ユーザーID: ローカルテスト (Firebase未設定)`;
+                    sendRankingButton.disabled = true;
+                    return;
+                }
+
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                firebaseInitializedSuccessfully = true;
+
+                // Firebase認証の状態監視
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        userIdDisplay.textContent = `ユーザーID: ${userId}`;
+                        isAuthReady = true;
+                        console.log("Firebase Auth Ready. User ID:", userId);
+                        logAccess(); // 認証完了後にアクセスログを送信
+                        sendRankingButton.disabled = false; // 認証成功したらランキングボタンを有効化
+                    } else {
+                        try {
+                            if (initialAuthToken) {
+                                await signInWithCustomToken(auth, initialAuthToken);
+                            } else {
+                                await signInAnonymously(auth);
+                            }
+                            userId = auth.currentUser?.uid || crypto.randomUUID();
+                            userIdDisplay.textContent = `ユーザーID: ${userId}`;
+                            isAuthReady = true;
+                            console.log("Firebase Auth Ready (Anonymous). User ID:", userId);
+                            logAccess();
+                            sendRankingButton.disabled = false; // 認証成功したらランキングボタンを有効化
+                        } catch (authError) {
+                            console.error("Firebase Authentication Failed:", authError);
+                            showMessage("Firebase認証に失敗しました。ランキング機能は利用できません。", 5000);
+                            userId = crypto.randomUUID();
+                            userIdDisplay.textContent = `ユーザーID: 認証失敗 (${userId.substring(0, 8)}...)`;
+                            isAuthReady = false;
+                            firebaseInitializedSuccessfully = false;
+                            sendRankingButton.disabled = true; // 認証失敗したらランキングボタンを無効化
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error("Firebase Initialization Failed:", error);
+                showMessage("Firebaseの初期化に失敗しました。ランキングとログ機能は動作しません。", 5000);
+                firebaseInitializedSuccessfully = false;
+                userIdDisplay.textContent = `ユーザーID: 初期化失敗`;
+                sendRankingButton.disabled = true; // 初期化失敗したらランキングボタンを無効化
+            }
+        }
+
+        // --- アクセスログをFirestoreに記録する関数 ---
+        async function logAccess() {
+            if (!firebaseInitializedSuccessfully || !db || !isAuthReady) {
+                console.warn("Firestore or Auth not ready for access logging. Skipping log.");
+                return;
+            }
+
+            try {
+                const accessLogsCollectionRef = collection(db, `artifacts/${appId}/public/data/accessLogs`);
+                await addDoc(accessLogsCollectionRef, {
+                    timestamp: serverTimestamp(),
+                    userId: userId,
+                    userAgent: navigator.userAgent,
+                    pageUrl: window.location.href,
+                    language: navigator.language,
+                    screenResolution: `${window.screen.width}x${window.screen.height}`,
+                    ipAddress: 'Not available from client-side JS' 
+                });
+                console.log("Access logged successfully!");
+            } catch (error) {
+                console.error("Error logging access:", error);
+            }
+        }
+
+        // --- データ保存・読み込み (localStorage) ---
+        const LOCAL_STORAGE_KEY = 'clickerGameSaveData';
+        const LOCAL_STORAGE_BEST_SCORE_KEY = 'clickerGameBestScore';
+
+        function saveGame() {
+            const saveData = {
+                power: power,
+                premiumCurrency: premiumCurrency,
+                baseClickPower: baseClickPower,
+                autoClickRate: autoClickRate,
+                ownedCharacters: ownedCharacters,
+                upgrades: {
+                    clickPower: { level: upgrades.clickPower.level, cost: upgrades.clickPower.cost },
+                    autoClick: { level: upgrades.autoClick.level, cost: upgrades.autoClick.cost },
+                    ultimatePower: { level: upgrades.ultimatePower.level, cost: upgrades.ultimatePower.cost }
+                },
+                totalPlayedTimeMs: totalPlayedTimeMs + (Date.now() - currentSessionStartTime),
+                lastSessionStartTime: Date.now()
+            };
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(saveData));
+        }
+
+        function loadGame() {
+            const savedData = localStorage.getItem(LOCAL_STORAGE_KEY);
+            if (savedData) {
+                const data = JSON.parse(savedData);
+                power = data.power || 0;
+                premiumCurrency = data.premiumCurrency || 0;
+                baseClickPower = data.baseClickPower || 1;
+                autoClickRate = data.autoClickRate || 0;
+                ownedCharacters = data.ownedCharacters || [];
+                
+                upgrades.clickPower.level = data.upgrades?.clickPower?.level || 0;
+                upgrades.clickPower.cost = data.upgrades?.clickPower?.cost || 10;
+                upgrades.autoClick.level = data.upgrades?.autoClick?.level || 0;
+                upgrades.autoClick.cost = data.upgrades?.autoClick?.cost || 100;
+                upgrades.ultimatePower.level = data.upgrades?.ultimatePower?.level || 0;
+                upgrades.ultimatePower.cost = data.upgrades?.ultimatePower?.cost || 50;
+
+                totalPlayedTimeMs = data.totalPlayedTimeMs || 0;
+                currentSessionStartTime = Date.now();
+            }
+        }
+
+        window.addEventListener('beforeunload', saveGame);
+        setInterval(saveGame, 10000);
+
+        // --- ゲームロジック関数 ---
+        function calculateTotalClickPower() {
+            let total = baseClickPower;
+            total += upgrades.clickPower.level * upgrades.clickPower.effect;
+            total += upgrades.ultimatePower.level * upgrades.ultimatePower.effect;
+            ownedCharacters.forEach(char => {
+                total += char.attack * char.multiplier;
+            });
+            return Math.ceil(total);
+        }
+
         function updateUI() {
             powerDisplay.textContent = power.toLocaleString();
             premiumCurrencyDisplay.textContent = premiumCurrency.toLocaleString();
-            ownedCharactersCountDisplay.textContent = ownedCharacters.length.toLocaleString();
+            currentClickPowerDisplay.textContent = calculateTotalClickPower().toLocaleString();
 
-            // クリック力強化の表示更新
             clickPowerUpgradeCostDisplay.textContent = upgrades.clickPower.cost.toLocaleString();
             clickPowerUpgradeValueDisplay.textContent = upgrades.clickPower.effect.toLocaleString();
             buyClickPowerUpgradeBtn.disabled = power < upgrades.clickPower.cost;
 
-            // 自動クリックの表示更新
-            autoClickCostDisplay.textContent = autoClickRate.toLocaleString();
+            autoClickCostDisplay.textContent = upgrades.autoClick.cost.toLocaleString();
             autoClickValueDisplay.textContent = autoClickRate.toLocaleString();
             buyAutoClickUpgradeBtn.disabled = power < upgrades.autoClick.cost;
 
-            // 究極の力の表示更新
             ultimatePowerCostDisplay.textContent = upgrades.ultimatePower.cost.toLocaleString();
             ultimatePowerValueDisplay.textContent = upgrades.ultimatePower.effect.toLocaleString();
             buyUltimatePowerBtn.disabled = premiumCurrency < upgrades.ultimatePower.cost;
 
-            // ガチャの表示更新
             gachaCostDisplay.textContent = gachaCost.toLocaleString();
             drawGachaBtn.disabled = power < gachaCost;
 
-            // 所持キャラクターリストの更新
-            ownedCharactersList.innerHTML = ''; // リストをクリア
+            ownedCharactersList.innerHTML = '';
             if (ownedCharacters.length === 0) {
                 ownedCharactersList.innerHTML = '<p class="text-gray-500 text-sm italic">まだキャラクターがいません。</p>';
             } else {
                 ownedCharacters.forEach(char => {
                     const charItem = document.createElement('div');
                     charItem.className = 'character-item';
+                    let multiplierText = '';
+                    if (char.multiplier > 1) {
+                        multiplierText = ` (x${char.multiplier.toFixed(1)}倍)`;
+                    }
+                    const displayedAttack = Math.ceil(char.attack * char.multiplier);
                     charItem.innerHTML = `
                         <span class="font-medium">${char.name}</span>
-                        <span class="text-sm text-gray-600">攻撃力: ${char.attack} (${char.rarity})</span>
+                        <span class="text-sm text-gray-600">攻撃力: ${displayedAttack}${multiplierText}</span>
                     `;
                     ownedCharactersList.appendChild(charItem);
                 });
             }
         }
 
-        // メッセージボックスを表示する関数
         function showMessage(message, duration = 2000) {
             messageBox.textContent = message;
             messageBox.classList.add('show');
@@ -346,33 +656,81 @@
             }, duration);
         }
 
-        // クリックボタンのイベントリスナー
-        clickButton.addEventListener('click', () => {
-            power += clickPower; // 現在のクリック力を使用
+        function createClickEffect(x, y) {
+            const numParticles = 5 + Math.floor(Math.random() * 5);
+            for (let i = 0; i < numParticles; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                const size = 10 + Math.random() * 20;
+                particle.style.width = `${size}px`;
+                particle.style.height = `${size}px`;
+                const colors = particleColors[Math.floor(Math.random() * particleColors.length)];
+                particle.style.background = `radial-gradient(circle, ${colors[0]} 0%, ${colors[1]} 100%)`;
+                particle.style.left = `${x}px`;
+                particle.style.top = `${y}px`;
+                const translateX = (Math.random() - 0.5) * 100;
+                const translateY = (Math.random() - 0.5) * 100;
+                particle.style.setProperty('--translate-x', `${translateX}px`);
+                particle.style.setProperty('--translate-y', `${translateY}px`);
+                const animationDuration = 0.8 + Math.random() * 0.4;
+                particle.style.animationDuration = `${animationDuration}s`;
+                const animationDelay = Math.random() * 0.2;
+                particle.style.animationDelay = `${animationDelay}s`;
+                effectContainer.appendChild(particle);
+                particle.addEventListener('animationend', () => {
+                    particle.remove();
+                });
+            }
+        }
+
+        function updateElapsedTime() {
+            const now = Date.now();
+            const currentSessionElapsedMs = now - currentSessionStartTime;
+            const totalElapsedMilliseconds = totalPlayedTimeMs + currentSessionElapsedMs;
+
+            const ms = totalElapsedMilliseconds % 1000;
+            const totalSeconds = Math.floor(totalElapsedMilliseconds / 1000);
+            const seconds = totalSeconds % 60;
+            const totalMinutes = Math.floor(totalSeconds / 60);
+            const minutes = totalMinutes % 60;
+            const totalHours = Math.floor(totalMinutes / 60);
+            const hours = totalHours % 24;
+            const days = Math.floor(totalHours / 24);
+
+            const formattedDays = String(days).padStart(3, '0');
+            const formattedHours = String(hours).padStart(2, '0');
+            const formattedMinutes = String(minutes).padStart(2, '0');
+            const formattedSeconds = String(seconds).padStart(2, '0');
+            const formattedMs = String(ms).padStart(3, '0');
+
+            elapsedTimeDisplay.textContent = `${formattedDays}日${formattedHours}時間${formattedMinutes}分${formattedSeconds}秒.${formattedMs}`;
+        }
+
+        // --- イベントリスナー ---
+        clickButton.addEventListener('click', (event) => {
+            power += calculateTotalClickPower();
             updateUI();
-            showMessage(`+${clickPower} 力！`);
+            showMessage(`+${calculateTotalClickPower()} 力！`);
+            createClickEffect(event.clientX, event.clientY);
         });
 
-        // クリック力強化の購入
         buyClickPowerUpgradeBtn.addEventListener('click', () => {
             if (power >= upgrades.clickPower.cost) {
                 power -= upgrades.clickPower.cost;
-                clickPower += upgrades.clickPower.effect; // クリック力に加算
-                upgrades.clickPower.cost = Math.floor(upgrades.clickPower.cost * 1.5); // コスト増加
                 upgrades.clickPower.level++;
-                showMessage(`クリック力強化！ 現在のクリック力: ${clickPower}`);
+                upgrades.clickPower.cost = Math.floor(upgrades.clickPower.cost * 1.5);
+                showMessage(`クリック力強化！`);
                 updateUI();
             } else {
                 showMessage('力が足りません！');
             }
         });
 
-        // 自動クリックの購入
         buyAutoClickUpgradeBtn.addEventListener('click', () => {
             if (power >= upgrades.autoClick.cost) {
                 power -= upgrades.autoClick.cost;
                 autoClickRate += upgrades.autoClick.effect;
-                upgrades.autoClick.cost = Math.floor(upgrades.autoClick.cost * 1.8); // コスト増加
+                upgrades.autoClick.cost = Math.floor(upgrades.autoClick.cost * 1.8);
                 upgrades.autoClick.level++;
                 showMessage(`自動クリック購入！ 毎秒 ${autoClickRate} 力獲得！`);
                 updateUI();
@@ -381,52 +739,208 @@
             }
         });
 
-        // プレミアム通貨の購入（シミュレーション）
         buyPremiumCurrencyBtn.addEventListener('click', () => {
-            premiumCurrency += 100; // 100プレミアム通貨を付与
+            premiumCurrency += 100;
             showMessage('プレミアム通貨を100購入しました！');
             updateUI();
         });
 
-        // 究極の力の購入
         buyUltimatePowerBtn.addEventListener('click', () => {
             if (premiumCurrency >= upgrades.ultimatePower.cost) {
                 premiumCurrency -= upgrades.ultimatePower.cost;
-                clickPower += upgrades.ultimatePower.effect; // 究極の力はクリック力を大幅に増加
                 upgrades.ultimatePower.level++;
-                showMessage(`究極の力を手に入れた！ クリック力が大幅にアップ！`);
+                showMessage(`究極の力を手に入れた！`);
                 updateUI();
             } else {
                 showMessage('プレミアム通貨が足りません！');
             }
         });
 
-        // ガチャを引く
         drawGachaBtn.addEventListener('click', () => {
             if (power >= gachaCost) {
                 power -= gachaCost;
+                // ティア1のキャラクターのみをフィルタリング
+                const tier1Characters = characters.filter(char => char.gachaTier === 1);
+                const randomIndex = Math.floor(Math.random() * tier1Characters.length);
+                const newCharacterBase = tier1Characters[randomIndex];
+                
+                let existingChar = ownedCharacters.find(char => char.id === newCharacterBase.id);
 
-                // ランダムにキャラクターを選択
-                const randomIndex = Math.floor(Math.random() * characters.length);
-                const newCharacter = characters[randomIndex];
-
-                ownedCharacters.push(newCharacter);
-                clickPower += newCharacter.attack; // ★ここが変更点：獲得したキャラの攻撃力をクリック力に加算
-                showMessage(`${newCharacter.name} を獲得しました！ (攻撃力: ${newCharacter.attack})`);
+                if (existingChar) {
+                    existingChar.multiplier = parseFloat((existingChar.multiplier + GACHA_DUPLICATE_MULTIPLIER_BONUS).toFixed(1));
+                    showMessage(`${existingChar.name} の攻撃力が x${existingChar.multiplier.toFixed(1)}倍 になりました！`);
+                } else {
+                    const newOwnedChar = { ...newCharacterBase, multiplier: 1.0 };
+                    ownedCharacters.push(newOwnedChar);
+                    showMessage(`${newCharacterBase.name} を獲得しました！ (攻撃力: ${newCharacterBase.attack})`);
+                }
                 updateUI();
             } else {
                 showMessage(`ガチャを引くには ${gachaCost} 力が必要です！`);
             }
         });
 
-        // 自動クリックのタイマー
-        setInterval(() => {
-            power += autoClickRate;
-            updateUI();
-        }, 1000); // 1秒ごとに実行
+        // --- ランキングシステム (Firestore連携) ---
 
-        // 初期UIの更新
-        updateUI();
+        let playerBestScore = JSON.parse(localStorage.getItem(LOCAL_STORAGE_BEST_SCORE_KEY)) || null;
+
+        function calculateOverallScore() {
+            const totalEffectiveCharacterAttack = ownedCharacters.reduce((sum, char) => sum + Math.ceil(char.attack * char.multiplier), 0);
+            return Math.ceil(
+                power * 1
+                + calculateTotalClickPower() * 100
+                + totalEffectiveCharacterAttack * 1000
+                + premiumCurrency * 5000
+            );
+        }
+
+        sendRankingButton.addEventListener('click', async () => {
+            const playerName = playerNameInput.value.trim();
+            if (!playerName) {
+                showMessage('名前を入力してください！');
+                return;
+            }
+            // Firebaseが正常に初期化されていない場合はランキング送信をブロック
+            if (!firebaseInitializedSuccessfully || !isAuthReady) {
+                showMessage('Firebaseが初期化されていないか、認証が完了していません。ランキング機能は利用できません。', 3000);
+                return;
+            }
+
+            const currentScore = calculateOverallScore();
+            const currentClickPower = calculateTotalClickPower();
+            const totalEffectiveCharacterAttack = ownedCharacters.reduce((sum, char) => sum + Math.ceil(char.attack * char.multiplier), 0);
+
+            const newScoreEntry = {
+                userId: userId, // ユーザーIDも保存
+                name: playerName,
+                score: currentScore,
+                power: power,
+                clickPower: currentClickPower,
+                charAttack: totalEffectiveCharacterAttack,
+                premium: premiumCurrency,
+                timestamp: serverTimestamp() // サーバータイムスタンプ
+            };
+
+            // 自分のベストスコアを更新 (localStorage)
+            if (!playerBestScore || newScoreEntry.score > playerBestScore.score) {
+                playerBestScore = newScoreEntry;
+                localStorage.setItem(LOCAL_STORAGE_BEST_SCORE_KEY, JSON.stringify(playerBestScore));
+                showMessage('ハイスコアを更新しました！');
+            } else {
+                showMessage('現在のスコアはハイスコアを更新しませんでした。');
+            }
+
+            // Firestoreにデータを送信
+            try {
+                const rankingsCollectionRef = collection(db, `artifacts/${appId}/public/data/rankings`);
+                await addDoc(rankingsCollectionRef, newScoreEntry);
+                showMessage('ランキングにデータを送信しました！', 3000);
+            } catch (error) {
+                console.error("Error adding document to Firestore:", error);
+                showMessage('ランキングデータの送信に失敗しました。', 5000);
+            }
+
+            displayRanking(); // ランキング表示
+        });
+
+        async function displayRanking() {
+            rankingListContainer.innerHTML = '<p class="text-center text-gray-600">ランキングデータを読み込み中...</p>';
+            rankingModalOverlay.classList.add('show');
+
+            // Firebaseが正常に初期化されていない場合はランキング表示をブロック
+            if (!firebaseInitializedSuccessfully || !db || !isAuthReady) {
+                rankingListContainer.innerHTML = '<p class="text-center text-red-500">Firebaseが初期化されていないため、ランキング機能は利用できません。</p>';
+                return;
+            }
+
+            try {
+                const rankingsCollectionRef = collection(db, `artifacts/${appId}/public/data/rankings`);
+                // orderByは使用せず、全てのドキュメントを取得してクライアント側でソート
+                const querySnapshot = await getDocs(rankingsCollectionRef);
+
+                let allRankings = [];
+                querySnapshot.forEach((doc) => {
+                    allRankings.push({ id: doc.id, ...doc.data() }); // ドキュメントIDも取得
+                });
+
+                // スコアの高い順にソート
+                allRankings.sort((a, b) => b.score - a.score);
+
+                let rankingHtml = `
+                    <table class="ranking-table">
+                        <thead>
+                            <tr>
+                                <th>順位</th>
+                                <th>名前</th>
+                                <th>総合スコア</th>
+                                <th>力</th>
+                                <th>クリック力</th>
+                                <th>キャラ攻撃力</th>
+                                <th>プレミアム通貨</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                if (allRankings.length === 0) {
+                    rankingHtml += `<tr><td colspan="7">まだランキングデータがありません。</td></tr>`;
+                } else {
+                    allRankings.forEach((entry, index) => {
+                        // 自分のエントリをハイライト (現在のuserIdと保存されたuserIdを比較)
+                        // localStorageに保存されたベストスコアのuserIdと比較するように変更
+                        const isPlayerEntry = (playerBestScore && entry.userId === playerBestScore.userId && entry.name === playerBestScore.name && entry.score === playerBestScore.score);
+                        const rowClass = isPlayerEntry ? 'bg-yellow-100 font-bold' : '';
+                        rankingHtml += `
+                            <tr class="${rowClass}">
+                                <td>${index + 1}</td>
+                                <td>${entry.name}</td>
+                                <td>${entry.score.toLocaleString()}</td>
+                                <td>${entry.power.toLocaleString()}</td>
+                                <td>${entry.clickPower.toLocaleString()}</td>
+                                <td>${entry.charAttack.toLocaleString()}</td>
+                                <td>${entry.premium.toLocaleString()}</td>
+                            </tr>
+                        `;
+                    });
+                }
+
+                rankingHtml += `
+                        </tbody>
+                    </table>
+                `;
+                rankingListContainer.innerHTML = rankingHtml;
+
+            } catch (error) {
+                console.error("Error fetching ranking data:", error);
+                rankingListContainer.innerHTML = '<p class="text-center text-red-500">ランキングデータの取得に失敗しました。</p>';
+            }
+        }
+
+        closeRankingModalBtn.addEventListener('click', () => {
+            rankingModalOverlay.classList.remove('show');
+        });
+
+        // --- 初期化処理 ---
+        // キャラクターデータを先にロード
+        loadCharacters().then(() => {
+            // Firebase初期化
+            initializeFirebase(); // Firebaseの初期化と認証を開始
+
+            // ゲームデータをロード
+            loadGame();
+            // 自動クリックのタイマー
+            setInterval(() => {
+                power += autoClickRate;
+                updateUI();
+            }, 1000);
+
+            // 経過時間カウンターのタイマー (10ミリ秒ごとに更新)
+            setInterval(updateElapsedTime, 10);
+
+            // 初期UIの更新
+            updateUI();
+            updateElapsedTime();
+        });
     </script>
 </body>
 </html>
