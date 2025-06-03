@@ -269,6 +269,41 @@
             color: #64748b;
         }
 
+        /* クリティカルヒット演出 */
+        .critical-hit-message {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 4rem; /* 大きい文字 */
+            font-weight: bold;
+            color: #FFD700; /* 派手な色 */
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.8), 0 0 20px rgba(255, 215, 0, 0.6);
+            opacity: 0;
+            pointer-events: none;
+            animation: critical-fade-up 1.5s forwards ease-out;
+            z-index: 1002; /* メッセージボックスより上 */
+        }
+
+        @keyframes critical-fade-up {
+            0% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.5);
+            }
+            20% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1.2);
+            }
+            80% {
+                opacity: 1;
+                transform: translate(-50%, -100%) scale(1.0);
+            }
+            100% {
+                opacity: 0;
+                transform: translate(-50%, -150%) scale(0.8);
+            }
+        }
+
         /* Responsive adjustments */
         @media (max-width: 640px) {
             .game-container {
@@ -296,6 +331,9 @@
             .item-list-grid {
                 grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); /* モバイルで小さく */
             }
+            .critical-hit-message {
+                font-size: 2.5rem; /* モバイルでの文字サイズ調整 */
+            }
         }
     </style>
 </head>
@@ -320,6 +358,11 @@
 
         <button id="clickButton" class="btn btn-primary text-2xl mt-4">
             <span class="mr-2">💪</span> クリックして力を得る！
+        </button>
+
+        <!-- クリティカルボタンを追加 -->
+        <button id="criticalClickButton" class="btn btn-premium text-2xl mt-4">
+            <span class="mr-2">✨</span> クリティカルを狙う！
         </button>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
@@ -415,6 +458,8 @@
 
     <div id="messageBox" class="message-box"></div>
     <div id="effectContainer"></div>
+    <!-- クリティカルヒット表示用の要素 -->
+    <div id="criticalHitDisplay" class="critical-hit-message"></div>
 
     <div id="rankingModalOverlay" class="modal-overlay">
         <div class="modal-content">
@@ -474,6 +519,7 @@
         let characters = []; 
         let allItems = []; // item.jsonからロードされる全アイテムデータ
         let allTerritories = []; // territory.jsonからロードされる全領土データ
+        let criticalSchedules = []; // critical.jsonからロードされるクリティカルスケジュールデータ
 
         const upgrades = {
             clickPower: { cost: 10, effect: 1, level: 0 },
@@ -485,6 +531,11 @@
         const GACHA_DUPLICATE_MULTIPLIER_BONUS = 0.1;
         const TERRITORY_UPGRADE_MULTIPLIER_INCREMENT = 0.1; // 領土アップグレードごとの倍率増加
 
+        // クリティカルヒット関連の状態変数
+        let currentCriticalScheduleIndex = 0; // 現在選択されているクリティカルスケジュールのインデックス
+        let clicksSinceLastCritical = 0; // 前回のクリティカルヒットからのクリック数
+        let nextCriticalThreshold = 0; // 次のクリティカルヒットまでの目標クリック数
+
         let currentSessionStartTime = Date.now();
         let totalPlayedTimeMs = 0;
 
@@ -494,10 +545,12 @@
         const currentClickPowerDisplay = document.getElementById('currentClickPowerDisplay');
         const autoGainPerSecondDisplay = document.getElementById('autoGainPerSecondDisplay'); // 自動獲得力/秒表示
         const clickButton = document.getElementById('clickButton');
+        const criticalClickButton = document.getElementById('criticalClickButton'); // クリティカルボタン
         const messageBox = document.getElementById('messageBox');
         const effectContainer = document.getElementById('effectContainer');
         const elapsedTimeDisplay = document.getElementById('elapsedTimeDisplay');
         const userIdDisplay = document.getElementById('userIdDisplay');
+        const criticalHitDisplay = document.getElementById('criticalHitDisplay'); // クリティカルヒット表示要素
 
         const buyClickPowerUpgradeBtn = document.getElementById('buyClickPowerUpgrade');
         const clickPowerUpgradeCostDisplay = document.getElementById('clickPowerUpgradeCost');
@@ -536,21 +589,32 @@
         // --- 外部データをロードする関数 ---
         async function loadExternalData() {
             try {
-                const [charactersRes, itemsRes, territoriesRes] = await Promise.all([
-                    fetch('characters.json'),
-                    fetch('item.json'),
-                    fetch('territory.json')
+                const [charactersRes, itemsRes, territoriesRes, criticalRes] = await Promise.all([
+                    // アップロードされたファイルは 'uploaded:' プレフィックスを使用してアクセスします
+                    fetch('uploaded:characters.json'),
+                    fetch('uploaded:item.json'),
+                    fetch('uploaded:territory.json'),
+                    fetch('uploaded:critical.json') // critical.jsonをロード
                 ]);
 
                 if (!charactersRes.ok) throw new Error(`HTTP error! status: ${charactersRes.status} for characters.json`);
                 if (!itemsRes.ok) throw new Error(`HTTP error! status: ${itemsRes.status} for item.json`);
                 if (!territoriesRes.ok) throw new Error(`HTTP error! status: ${territoriesRes.status} for territory.json`);
+                if (!criticalRes.ok) throw new Error(`HTTP error! status: ${criticalRes.status} for critical.json`);
 
                 characters = await charactersRes.json();
                 allItems = await itemsRes.json();
                 allTerritories = await territoriesRes.json();
+                criticalSchedules = await criticalRes.json(); // critical.jsonのデータを格納
 
-                console.log('External data loaded:', { characters, allItems, allTerritories });
+                console.log('External data loaded:', { characters, allItems, allTerritories, criticalSchedules });
+
+                // 初期クリティカルスケジュールを設定
+                if (criticalSchedules.length > 0) {
+                    currentCriticalScheduleIndex = 0; // 最初のスケジュールをデフォルトにする
+                    generateNextCriticalThreshold();
+                }
+
             } catch (error) {
                 console.error('Failed to load external JSON data:', error);
                 showMessage('ゲームデータの読み込みに失敗しました。', 5000);
@@ -658,7 +722,11 @@
                     ultimatePower: { level: upgrades.ultimatePower.level, cost: upgrades.ultimatePower.cost }
                 },
                 totalPlayedTimeMs: totalPlayedTimeMs + (Date.now() - currentSessionStartTime),
-                lastSessionStartTime: Date.now()
+                lastSessionStartTime: Date.now(),
+                // クリティカルヒット関連のデータを保存
+                currentCriticalScheduleIndex: currentCriticalScheduleIndex,
+                clicksSinceLastCritical: clicksSinceLastCritical,
+                nextCriticalThreshold: nextCriticalThreshold
             };
             localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(saveData));
         }
@@ -684,6 +752,11 @@
 
                 totalPlayedTimeMs = data.totalPlayedTimeMs || 0;
                 currentSessionStartTime = Date.now();
+
+                // クリティカルヒット関連のデータをロード
+                currentCriticalScheduleIndex = data.currentCriticalScheduleIndex || 0;
+                clicksSinceLastCritical = data.clicksSinceLastCritical || 0;
+                nextCriticalThreshold = data.nextCriticalThreshold || 0;
             }
         }
 
@@ -824,6 +897,19 @@
             }
         }
 
+        // クリティカルヒット時の演出表示
+        function showCriticalEffect(amount) {
+            criticalHitDisplay.textContent = `+${amount.toLocaleString()}力！`;
+            criticalHitDisplay.classList.add('show');
+            // アニメーションをリセットするためにクラスを一度削除してから追加
+            criticalHitDisplay.style.animation = 'none';
+            void criticalHitDisplay.offsetWidth; // Reflowを強制
+            criticalHitDisplay.style.animation = null; 
+            setTimeout(() => {
+                criticalHitDisplay.classList.remove('show');
+            }, 1500); // アニメーション時間に合わせて調整
+        }
+
         function updateElapsedTime() {
             const now = Date.now();
             const currentSessionElapsedMs = now - currentSessionStartTime;
@@ -847,6 +933,18 @@
             elapsedTimeDisplay.textContent = `${formattedDays}日${formattedHours}時間${formattedMinutes}分${formattedSeconds}秒.${formattedMs}`;
         }
 
+        // 次のクリティカルヒットまでの閾値を生成
+        function generateNextCriticalThreshold() {
+            if (criticalSchedules.length === 0) {
+                nextCriticalThreshold = 1; // スケジュールがない場合は常にクリティカル
+                return;
+            }
+            const currentSchedule = criticalSchedules[currentCriticalScheduleIndex];
+            // 平均値を中心にランダムな閾値を設定
+            nextCriticalThreshold = Math.floor(Math.random() * (currentSchedule.averageOccurrences * 2)) + 1;
+            console.log(`Next critical threshold: ${nextCriticalThreshold} clicks for schedule: ${currentSchedule.name}`);
+        }
+
         // --- イベントリスナー ---
         clickButton.addEventListener('click', (event) => {
             power += calculateTotalClickPower();
@@ -854,6 +952,41 @@
             showMessage(`+${calculateTotalClickPower()} 力！`);
             createClickEffect(event.clientX, event.clientY);
         });
+
+        criticalClickButton.addEventListener('click', (event) => {
+            if (criticalSchedules.length === 0) {
+                showMessage('クリティカルヒットのスケジュールがロードされていません。', 3000);
+                return;
+            }
+
+            clicksSinceLastCritical++;
+            const currentSchedule = criticalSchedules[currentCriticalScheduleIndex];
+
+            let isCritical = false;
+            // 変動比率スケジュールの判定
+            if (clicksSinceLastCritical >= nextCriticalThreshold) {
+                isCritical = true;
+            }
+
+            if (isCritical) {
+                const basePower = calculateTotalClickPower();
+                const randomMultiplier = Math.random() * (currentSchedule.maxBaseMultiplier - currentSchedule.minBaseMultiplier) + currentSchedule.minBaseMultiplier;
+                const criticalPower = Math.ceil(basePower * randomMultiplier);
+                power += criticalPower;
+                showMessage(`クリティカルヒット！ +${criticalPower.toLocaleString()}力！`);
+                showCriticalEffect(criticalPower); // 派手な演出
+                createClickEffect(event.clientX, event.clientY); // 通常のクリックエフェクトも
+                clicksSinceLastCritical = 0; // カウンターをリセット
+                generateNextCriticalThreshold(); // 次の閾値を生成
+            } else {
+                // クリティカルでなかった場合も通常のクリック力は加算しない（仕様により）
+                // もし通常のクリック力も加算したい場合はここに power += calculateTotalClickPower(); を追加
+                showMessage(`クリティカルならず... (${clicksSinceLastCritical}/${nextCriticalThreshold})`);
+            }
+            updateUI();
+            saveGame();
+        });
+
 
         buyClickPowerUpgradeBtn.addEventListener('click', () => {
             if (power >= upgrades.clickPower.cost) {
